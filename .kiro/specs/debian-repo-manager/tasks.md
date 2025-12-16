@@ -23,7 +23,7 @@
   - **Property 2: Version Tracking Consistency**
   - **Validates: Requirements 1.5**
 
-- [ ] 3. Implement DynamoDB version manager
+- [x] 3. Implement DynamoDB version manager
   - Create VersionManager class with DynamoDB integration
   - Implement version storage with all required fields (version, URLs, timestamp, checksum)
   - Add scan operations with pagination support for retrieving all versions
@@ -31,7 +31,7 @@
   - Run ruff check and format before completion
   - _Requirements: 6.1, 6.2, 6.3, 6.5_
 
-- [ ] 3.1 Write property test for DynamoDB storage completeness
+- [x] 3.1 Write property test for DynamoDB storage completeness
   - **Property 7: DynamoDB Storage Completeness**
   - **Validates: Requirements 6.1, 6.2, 6.3**
 
