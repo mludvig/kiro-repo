@@ -35,7 +35,7 @@
   - **Property 7: DynamoDB Storage Completeness**
   - **Validates: Requirements 6.1, 6.2, 6.3**
 
-- [ ] 4. Implement package downloader with integrity verification
+- [x] 4. Implement package downloader with integrity verification
   - Create PackageDownloader class for downloading .deb, .pem, and .bin files
   - Implement checksum verification using available metadata
   - Add retry logic for failed downloads with exponential backoff
@@ -43,7 +43,7 @@
   - Run ruff check and format before completion
   - _Requirements: 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 4.1 Write property test for download and storage integrity
+- [x] 4.1 Write property test for download and storage integrity
   - **Property 3: Download and Storage Integrity**
   - **Validates: Requirements 2.1, 2.2, 2.5**
 
