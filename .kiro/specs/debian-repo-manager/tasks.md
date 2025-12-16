@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- [ ] 1. Set up project structure and dependencies
+- [x] 1. Set up project structure and dependencies
   - Create Python project structure with proper module organization
   - Set up pyproject.toml with uv for modern dependency management
   - Add boto3, requests, pytest, hypothesis, and ruff as dependencies
@@ -8,18 +8,18 @@
   - Configure logging and environment variable handling
   - _Requirements: 5.1, 5.5_
 
-- [ ] 1.1 Write property test for metadata processing round trip
+- [x] 1.1 Write property test for metadata processing round trip
   - **Property 1: Metadata Processing Round Trip**
   - **Validates: Requirements 1.1, 1.2**
 
-- [ ] 2. Implement metadata client for Kiro API
+- [x] 2. Implement metadata client for Kiro API
   - Create MetadataClient class with HTTP request handling
   - Implement JSON parsing and validation for the metadata structure
   - Add retry logic with exponential backoff for network failures
   - Run ruff check and format before completion
   - _Requirements: 1.1, 1.2, 1.3, 1.4_
 
-- [ ] 2.1 Write property test for version tracking consistency
+- [x] 2.1 Write property test for version tracking consistency
   - **Property 2: Version Tracking Consistency**
   - **Validates: Requirements 1.5**
 
