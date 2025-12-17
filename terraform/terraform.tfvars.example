@@ -1,0 +1,33 @@
+# Example Terraform variables file
+# Copy this file to terraform.tfvars and customize the values
+
+# Environment configuration
+env          = "dev"
+project_name = "kiro-debian-repo-manager"
+aws_region   = "us-east-1"
+
+# Lambda configuration
+lambda_timeout           = 900  # 15 minutes
+lambda_memory_size       = 1024 # MB
+lambda_ephemeral_storage = 512  # MB
+log_level               = "INFO"
+
+# Scheduling
+schedule_expression = "rate(1 hour)" # Run every hour
+
+# Notifications
+notification_email = "admin@example.com"
+
+# Monitoring
+enable_cloudwatch_alarms = true
+
+# Lambda source code path
+lambda_source_path = "../src"
+
+# Tags
+tags = {
+  Project     = "kiro-debian-repo-manager"
+  Environment = "dev"
+  Owner       = "devops-team"
+  ManagedBy   = "terraform"
+}

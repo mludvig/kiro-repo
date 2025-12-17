@@ -115,15 +115,17 @@
 - [x] 10. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Create Terraform infrastructure code
-  - Create main.tf with Lambda function configuration (Python 3.12 runtime)
+- [x] 11. Create Terraform infrastructure code
+  - Organise terraform files per logical resource, e.g. lambda + its permissions in lambda.tf, etc. Outputs at the bottom of each file, not in a separate outputs.tf
+  - Create terraform file with Lambda function configuration (Python 3.12 runtime)
   - Configure DynamoDB table with on-demand billing
   - Set up S3 bucket with public read permissions
   - Create IAM roles with least-privilege permissions
   - Add CloudWatch Events rule for periodic execution
   - Configure SNS topics for success and failure notifications
   - Add CloudWatch alarms and monitoring
-  - Support multiple environments through variables
+  - Support multiple environments through `env` variables and terraform.tfvars files
+  - All terraform files should be in terraform/ folder
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
 - [ ] 12. Create deployment package and configuration

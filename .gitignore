@@ -9,3 +9,7 @@ __pycache__/
 .venv
 .hypothesis/
 .coverage
+
+.terraform/
+terraform.tfstate
+.terraform.lock.hcl
