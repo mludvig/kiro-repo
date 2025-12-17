@@ -7,6 +7,7 @@ from typing import Any
 import boto3
 from botocore.exceptions import ClientError
 
+from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_DYNAMODB_TABLE, get_env_var
 from src.models import ReleaseInfo
 
@@ -16,15 +17,23 @@ logger = logging.getLogger(__name__)
 class VersionManager:
     """Manages version tracking and comparison using DynamoDB."""
 
-    def __init__(self, table_name: str | None = None, region: str | None = None):
+    def __init__(self, table_name: str | None = None, region: str | None = None, validate_permissions: bool = True):
         """Initialize the version manager.
 
         Args:
             table_name: DynamoDB table name. If None, uses environment variable.
             region: AWS region. If None, uses environment variable or default.
+            validate_permissions: Whether to validate permissions on initialization.
         """
         self.table_name = table_name or get_env_var(ENV_DYNAMODB_TABLE, required=True)
         self.region = region or get_env_var(ENV_AWS_REGION, "us-east-1")
+
+        # Validate permissions before initializing resources
+        if validate_permissions:
+            permission_validator = AWSPermissionValidator(self.region)
+            permission_validator.validate_dynamodb_permissions(
+                self.table_name, ["PutItem", "GetItem", "Scan"]
+            )
 
         # Initialize DynamoDB client and table resource
         self.dynamodb = boto3.resource("dynamodb", region_name=self.region)

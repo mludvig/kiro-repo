@@ -9,6 +9,7 @@ import boto3
 import requests
 from botocore.exceptions import BotoCoreError, ClientError
 
+from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_S3_BUCKET, get_env_var
 from src.models import RepositoryStructure
 
@@ -18,15 +19,23 @@ logger = logging.getLogger(__name__)
 class S3Publisher:
     """Handles uploading repository files to S3 with proper permissions."""
 
-    def __init__(self, bucket_name: str | None = None, region: str | None = None):
+    def __init__(self, bucket_name: str | None = None, region: str | None = None, validate_permissions: bool = True):
         """Initialize S3Publisher.
 
         Args:
             bucket_name: S3 bucket name. If None, reads from environment.
             region: AWS region. If None, reads from environment.
+            validate_permissions: Whether to validate permissions on initialization.
         """
         self.bucket_name = bucket_name or get_env_var(ENV_S3_BUCKET, required=True)
         self.region = region or get_env_var(ENV_AWS_REGION, default="us-east-1")
+
+        # Validate permissions before initializing resources
+        if validate_permissions:
+            permission_validator = AWSPermissionValidator(self.region)
+            permission_validator.validate_s3_permissions(
+                self.bucket_name, ["PutObject", "GetObject", "ListBucket"]
+            )
 
         # Initialize S3 client
         self.s3_client = boto3.client("s3", region_name=self.region)
