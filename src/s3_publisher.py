@@ -79,6 +79,15 @@ class S3Publisher:
             )
             uploaded_keys.append(release_key)
 
+            # Upload kiro.list file
+            kiro_list_key = "kiro.list"
+            self._upload_content(
+                kiro_list_key,
+                repo_structure.kiro_list_content,
+                content_type="text/plain",
+            )
+            uploaded_keys.append(kiro_list_key)
+
             # Upload all deb files and associated files
             for local_files in repo_structure.deb_files:
                 # Upload .deb file

@@ -110,7 +110,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         local_files_map = {current_release.version: local_files}
         
         repository_structure = repository_builder.create_repository_structure(
-            all_releases, local_files_map
+            all_releases, local_files_map, s3_bucket
         )
         operation_logger.complete_operation(
             "repository_build", success=True, total_releases=len(all_releases)

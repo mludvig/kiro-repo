@@ -24,13 +24,14 @@ class RepositoryBuilder:
         logger.info(f"Initialized RepositoryBuilder with base path: {base_path}")
 
     def create_repository_structure(
-        self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None
+        self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None, bucket_name: str | None = None
     ) -> RepositoryStructure:
         """Create complete debian repository structure.
 
         Args:
             releases: List of all release information to include
             local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
+            bucket_name: S3 bucket name for generating kiro.list file
 
         Returns:
             RepositoryStructure containing all repository files and metadata
@@ -45,6 +46,15 @@ class RepositoryBuilder:
 
         # Generate Release file content
         release_content = self.generate_release_file(packages_content)
+
+        # Generate kiro.list file content
+        if bucket_name:
+            kiro_list_content = self.generate_kiro_list_file(bucket_name)
+        else:
+            # Fallback if bucket name not provided
+            from .config import ENV_S3_BUCKET, get_env_var
+            bucket_name = get_env_var(ENV_S3_BUCKET, required=True)
+            kiro_list_content = self.generate_kiro_list_file(bucket_name)
 
         # Create list of local release files
         deb_files = []
@@ -66,6 +76,7 @@ class RepositoryBuilder:
         return RepositoryStructure(
             packages_file_content=packages_content,
             release_file_content=release_content,
+            kiro_list_content=kiro_list_content,
             deb_files=deb_files,
             base_path=str(self.base_path),
         )
@@ -104,15 +115,11 @@ class RepositoryBuilder:
             sha1_hash = self._calculate_sha1(actual_deb_path)
             sha256_hash = self._calculate_sha256(actual_deb_path)
 
-            # Get installed size from the .deb file
-            installed_size = self._get_installed_size(actual_deb_path)
-
             # Create package entry
             entry = f"""Package: kiro
 Version: {release.version}
 Architecture: amd64
 Maintainer: Kiro Team <support@kiro.dev>
-Installed-Size: {installed_size}
 Depends: libc6 (>= 2.17)
 Section: editors
 Priority: optional
@@ -218,45 +225,17 @@ SHA256:
             # Return a mock hash for testing when file doesn't exist
             return hashlib.sha256(file_path.encode()).hexdigest()
 
-    def _get_installed_size(self, deb_file_path: str) -> int:
-        """Extract installed size from .deb file control information.
+    def generate_kiro_list_file(self, bucket_name: str) -> str:
+        """Generate kiro.list file content for APT repository configuration.
         
         Args:
-            deb_file_path: Path to the .deb file
+            bucket_name: S3 bucket name for the repository
             
         Returns:
-            Installed size in kilobytes
+            Content for kiro.list file
         """
-        try:
-            import subprocess
-            import tempfile
-            
-            # Use dpkg-deb to extract control information
-            result = subprocess.run(
-                ["dpkg-deb", "--info", deb_file_path],
-                capture_output=True,
-                text=True,
-                timeout=30
-            )
-            
-            if result.returncode == 0:
-                # Parse the control information for Installed-Size
-                for line in result.stdout.split('\n'):
-                    if line.strip().startswith('Installed-Size:'):
-                        size_str = line.split(':', 1)[1].strip()
-                        return int(size_str)
-            
-            logger.warning(f"Could not extract installed size from {deb_file_path}, using estimate")
-            
-        except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError, ValueError) as e:
-            logger.warning(f"Failed to extract installed size from {deb_file_path}: {e}, using estimate")
-        except (OSError, FileNotFoundError):
-            logger.warning(f"File not found: {deb_file_path}, using estimate")
-        
-        # Fallback: estimate based on file size (typical compression ratio 2-3x)
-        try:
-            file_size = os.path.getsize(deb_file_path)
-            return int(file_size / 1024 * 2.5)  # Convert to KB and apply compression ratio
-        except (OSError, FileNotFoundError):
-            # Final fallback for testing
-            return 450000  # Reasonable estimate for a desktop application (~450MB)
+        return f"""# Kiro IDE Debian Repository
+# This repository is not GPG-signed. The [trusted=yes] option bypasses signature verification.
+# For production use, consider importing a GPG key or using signed repositories.
+deb [trusted=yes] https://{bucket_name}.s3.amazonaws.com/ stable main
+"""

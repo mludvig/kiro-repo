@@ -46,5 +46,6 @@ class RepositoryStructure:
 
     packages_file_content: str
     release_file_content: str
+    kiro_list_content: str
     deb_files: list[LocalReleaseFiles]
     base_path: str
