@@ -134,7 +134,6 @@ class S3Publisher:
                     Key=key,
                     Body=content.encode("utf-8"),
                     ContentType=content_type,
-                    ACL="public-read",
                 )
 
                 logger.debug(f"Successfully uploaded content to {key}")
@@ -191,7 +190,7 @@ class S3Publisher:
                     file_path,
                     self.bucket_name,
                     key,
-                    ExtraArgs={"ContentType": content_type, "ACL": "public-read"},
+                    ExtraArgs={"ContentType": content_type},
                 )
 
                 logger.debug(f"Successfully uploaded file {file_path} to {key}")
@@ -211,37 +210,16 @@ class S3Publisher:
 
     def set_public_permissions(self, s3_keys: list[str]) -> None:
         """Set public read permissions on S3 objects.
+        
+        Note: Public access is handled by bucket policy, so this method
+        just logs that permissions are managed at the bucket level.
 
         Args:
             s3_keys: List of S3 object keys
-
-        Raises:
-            ClientError: If permission setting fails
         """
-        logger.info(f"Setting public read permissions on {len(s3_keys)} objects")
-
-        for key in s3_keys:
-            max_retries = 3
-            for attempt in range(max_retries):
-                try:
-                    self.s3_client.put_object_acl(
-                        Bucket=self.bucket_name, Key=key, ACL="public-read"
-                    )
-                    logger.debug(f"Set public permissions on {key}")
-                    break
-
-                except ClientError as e:
-                    error_code = e.response.get("Error", {}).get("Code", "Unknown")
-                    logger.warning(
-                        f"Permission setting attempt {attempt + 1} failed for {key}: {error_code}"
-                    )
-
-                    if attempt == max_retries - 1:
-                        logger.error(f"Failed to set permissions on {key}")
-                        raise
-
-                    # Exponential backoff
-                    time.sleep(2**attempt)
+        logger.info(
+            f"Public read access for {len(s3_keys)} objects is managed by bucket policy"
+        )
 
     def verify_upload_success(self, s3_keys: list[str]) -> bool:
         """Verify that all uploaded files are accessible via HTTPS.

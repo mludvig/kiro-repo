@@ -136,7 +136,6 @@ class AWSPermissionValidator:
                     Bucket=bucket_name,
                     Key=test_key,
                     Body=b"permission test",
-                    ACL="public-read",
                 )
                 logger.debug(f"S3 PutObject permission validated for {bucket_name}")
 

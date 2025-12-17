@@ -41,6 +41,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
       {
         Effect = "Allow"
         Action = [
+          "dynamodb:DescribeTable",
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:Scan",
@@ -94,7 +95,7 @@ resource "aws_lambda_function" "debian_repo_manager" {
   filename         = local.lambda_zip_path
   function_name    = "${var.project_name}-${var.env}"
   role            = aws_iam_role.lambda_role.arn
-  handler         = "main.lambda_handler"
+  handler         = "src.main.lambda_handler"
   source_code_hash = filebase64sha256(local.lambda_zip_path)
   runtime         = "python3.12"
   timeout         = var.lambda_timeout

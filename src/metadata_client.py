@@ -99,31 +99,114 @@ class MetadataClient:
         logger.info("Parsing release information from metadata")
 
         try:
-            # Validate required top-level fields
-            required_fields = ["version", "pub_date", "url", "certificate", "signature"]
-            missing_fields = [
-                field for field in required_fields if field not in metadata
-            ]
-
-            if missing_fields:
-                raise ValueError(
-                    f"Missing required fields in metadata: {missing_fields}"
-                )
-
-            # Create ReleaseInfo from metadata
-            release_info = ReleaseInfo.from_metadata(metadata)
-
-            logger.info(
-                f"Successfully parsed release info for version {release_info.version}"
-            )
-            logger.debug(f"Release info: {release_info}")
-
-            return [release_info]
+            # Check if this is the new nested structure
+            if "releases" in metadata and "currentRelease" in metadata:
+                return self._parse_nested_metadata(metadata)
+            
+            # Fallback to old flat structure
+            return self._parse_flat_metadata(metadata)
 
         except (KeyError, ValueError) as e:
             logger.error(f"Failed to parse release information: {e}")
             logger.error(f"Metadata structure: {json.dumps(metadata, indent=2)}")
             raise
+
+    def _parse_nested_metadata(self, metadata: dict[str, Any]) -> list[ReleaseInfo]:
+        """Parse the new nested metadata structure."""
+        releases = metadata.get("releases", [])
+        current_version = metadata.get("currentRelease")
+        
+        if not releases:
+            raise ValueError("No releases found in metadata")
+        
+        # Group releases by version to collect all URLs for each version
+        version_data = {}
+        
+        for release in releases:
+            version = release.get("version")
+            update_to = release.get("updateTo", {})
+            
+            if not version or not update_to:
+                continue
+                
+            if version not in version_data:
+                version_data[version] = {
+                    "version": version,
+                    "pub_date": update_to.get("pub_date", ""),
+                    "notes": update_to.get("notes", ""),
+                    "urls": []
+                }
+            
+            url = update_to.get("url", "")
+            if url:
+                version_data[version]["urls"].append(url)
+        
+        # Convert to ReleaseInfo objects
+        release_infos = []
+        
+        for version, data in version_data.items():
+            urls = data["urls"]
+            
+            # Identify URLs by their file extensions/patterns
+            deb_url = ""
+            certificate_url = ""
+            signature_url = ""
+            
+            for url in urls:
+                if url.endswith(".deb"):
+                    deb_url = url
+                elif url.endswith("certificate.pem") or "certificate" in url:
+                    certificate_url = url
+                elif url.endswith("signature.bin") or "signature" in url:
+                    signature_url = url
+            
+            if not deb_url:
+                logger.warning(f"No .deb file found for version {version}")
+                continue
+                
+            release_info = ReleaseInfo(
+                version=data["version"],
+                pub_date=data["pub_date"],
+                deb_url=deb_url,
+                certificate_url=certificate_url,
+                signature_url=signature_url,
+                notes=data["notes"]
+            )
+            
+            release_infos.append(release_info)
+            
+            logger.info(f"Parsed release info for version {version}")
+            logger.debug(f"Release info: {release_info}")
+        
+        if not release_infos:
+            raise ValueError("No valid release information could be parsed")
+            
+        # Sort by version (newest first) and return
+        release_infos.sort(key=lambda x: x.version, reverse=True)
+        return release_infos
+
+    def _parse_flat_metadata(self, metadata: dict[str, Any]) -> list[ReleaseInfo]:
+        """Parse the old flat metadata structure."""
+        # Validate required top-level fields
+        required_fields = ["version", "pub_date", "url", "certificate", "signature"]
+        missing_fields = [
+            field for field in required_fields if field not in metadata
+        ]
+
+        if missing_fields:
+            raise ValueError(
+                f"Missing required fields in metadata: {missing_fields}"
+            )
+
+        # Create ReleaseInfo from metadata
+        release_info = ReleaseInfo.from_metadata(metadata)
+
+        logger.info(
+            f"Successfully parsed release info for version {release_info.version}"
+        )
+        logger.debug(f"Release info: {release_info}")
+
+        return [release_info]
 
     def get_current_release(self) -> ReleaseInfo:
         """Fetch and parse the current release information.

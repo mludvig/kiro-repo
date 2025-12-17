@@ -72,15 +72,20 @@ class PackageDownloader:
         version_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Download each file type
+            # Extract original filenames from URLs
+            deb_filename = self._extract_filename_from_url(release_info.deb_url)
+            cert_filename = self._extract_filename_from_url(release_info.certificate_url)
+            sig_filename = self._extract_filename_from_url(release_info.signature_url)
+            
+            # Download each file type with original names
             deb_path = self._download_file(
-                release_info.deb_url, version_dir, "package.deb"
+                release_info.deb_url, version_dir, deb_filename
             )
             cert_path = self._download_file(
-                release_info.certificate_url, version_dir, "certificate.pem"
+                release_info.certificate_url, version_dir, cert_filename
             )
             sig_path = self._download_file(
-                release_info.signature_url, version_dir, "signature.bin"
+                release_info.signature_url, version_dir, sig_filename
             )
 
             local_files = LocalReleaseFiles(
@@ -198,6 +203,33 @@ class PackageDownloader:
             for chunk in iter(lambda: f.read(4096), b""):
                 sha256_hash.update(chunk)
         return sha256_hash.hexdigest()
+
+    def _extract_filename_from_url(self, url: str) -> str:
+        """Extract filename from URL.
+
+        Args:
+            url: URL to extract filename from
+
+        Returns:
+            Filename extracted from URL
+        """
+        # Extract filename from URL path
+        from urllib.parse import urlparse
+        parsed_url = urlparse(url)
+        filename = Path(parsed_url.path).name
+        
+        # Fallback to generic names if extraction fails
+        if not filename:
+            if url.endswith('.deb') or 'deb' in url:
+                filename = "package.deb"
+            elif url.endswith('.pem') or 'certificate' in url:
+                filename = "certificate.pem"
+            elif url.endswith('.bin') or 'signature' in url:
+                filename = "signature.bin"
+            else:
+                filename = "unknown_file"
+        
+        return filename
 
     def _cleanup_directory(self, directory: Path) -> None:
         """Clean up a directory and its contents.

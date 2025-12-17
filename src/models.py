@@ -19,7 +19,7 @@ class ReleaseInfo:
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> "ReleaseInfo":
-        """Create ReleaseInfo from metadata JSON."""
+        """Create ReleaseInfo from flat metadata JSON (legacy format)."""
         return cls(
             version=metadata["version"],
             pub_date=metadata["pub_date"],

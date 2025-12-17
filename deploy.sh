@@ -94,7 +94,6 @@ fi
 # Copy source code
 print_status "Copying source code..."
 cp -r src/ $PACKAGE_DIR/
-cp main.py $PACKAGE_DIR/
 
 # Remove unnecessary files
 print_status "Cleaning up package..."

@@ -24,12 +24,13 @@ class RepositoryBuilder:
         logger.info(f"Initialized RepositoryBuilder with base path: {base_path}")
 
     def create_repository_structure(
-        self, releases: list[ReleaseInfo]
+        self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None
     ) -> RepositoryStructure:
         """Create complete debian repository structure.
 
         Args:
             releases: List of all release information to include
+            local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
 
         Returns:
             RepositoryStructure containing all repository files and metadata
@@ -40,23 +41,27 @@ class RepositoryBuilder:
         self._create_directory_structure()
 
         # Generate Packages file content
-        packages_content = self.generate_packages_file(releases)
+        packages_content = self.generate_packages_file(releases, local_files_map)
 
         # Generate Release file content
         release_content = self.generate_release_file(packages_content)
 
-        # Create list of local release files (assuming they exist in /tmp)
+        # Create list of local release files
         deb_files = []
         for release in releases:
-            # For repository structure, we assume files are downloaded to /tmp
-            deb_files.append(
-                LocalReleaseFiles(
-                    deb_file_path=f"/tmp/kiro_{release.version}_amd64.deb",
-                    certificate_path=f"/tmp/kiro_{release.version}.pem",
-                    signature_path=f"/tmp/kiro_{release.version}.bin",
-                    version=release.version,
+            if local_files_map and release.version in local_files_map:
+                # Use actual downloaded files
+                deb_files.append(local_files_map[release.version])
+            else:
+                # Fallback to expected paths (for backward compatibility)
+                deb_files.append(
+                    LocalReleaseFiles(
+                        deb_file_path=f"/tmp/kiro_{release.version}_amd64.deb",
+                        certificate_path=f"/tmp/kiro_{release.version}.pem",
+                        signature_path=f"/tmp/kiro_{release.version}.bin",
+                        version=release.version,
+                    )
                 )
-            )
 
         return RepositoryStructure(
             packages_file_content=packages_content,
@@ -65,11 +70,12 @@ class RepositoryBuilder:
             base_path=str(self.base_path),
         )
 
-    def generate_packages_file(self, releases: list[ReleaseInfo]) -> str:
+    def generate_packages_file(self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None) -> str:
         """Generate Packages file content with metadata for all versions.
 
         Args:
             releases: List of release information
+            local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
 
         Returns:
             Packages file content as string
@@ -79,22 +85,34 @@ class RepositoryBuilder:
         packages_entries = []
 
         for release in releases:
-            # Extract package name from URL (assuming standard naming)
-            filename = f"kiro_{release.version}_amd64.deb"
+            # Determine the actual file path to use for calculations
+            if local_files_map and release.version in local_files_map:
+                local_files = local_files_map[release.version]
+                actual_deb_path = local_files.deb_file_path
+                # Use the actual filename from the downloaded file, but with proper repository path
+                actual_filename = Path(actual_deb_path).name
+                filename = f"pool/main/k/kiro/{actual_filename}"
+            else:
+                # Fallback to expected naming
+                actual_filename = f"kiro_{release.version}_amd64.deb"
+                filename = f"pool/main/k/kiro/{actual_filename}"
+                actual_deb_path = f"/tmp/{actual_filename}"
 
-            # Calculate file size and checksums (mock values for now - in real implementation
-            # these would be calculated from actual downloaded files)
-            file_size = self._get_file_size(f"/tmp/{filename}")
-            md5_hash = self._calculate_md5(f"/tmp/{filename}")
-            sha1_hash = self._calculate_sha1(f"/tmp/{filename}")
-            sha256_hash = self._calculate_sha256(f"/tmp/{filename}")
+            # Calculate file size and checksums from actual file
+            file_size = self._get_file_size(actual_deb_path)
+            md5_hash = self._calculate_md5(actual_deb_path)
+            sha1_hash = self._calculate_sha1(actual_deb_path)
+            sha256_hash = self._calculate_sha256(actual_deb_path)
+
+            # Get installed size from the .deb file
+            installed_size = self._get_installed_size(actual_deb_path)
 
             # Create package entry
             entry = f"""Package: kiro
 Version: {release.version}
 Architecture: amd64
 Maintainer: Kiro Team <support@kiro.dev>
-Installed-Size: 100000
+Installed-Size: {installed_size}
 Depends: libc6 (>= 2.17)
 Section: editors
 Priority: optional
@@ -142,11 +160,11 @@ Components: main
 Description: Kiro IDE Debian Repository
 Date: {datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S UTC")}
 MD5Sum:
- {packages_md5} {packages_size} Packages
+ {packages_md5} {packages_size} main/binary-amd64/Packages
 SHA1:
- {packages_sha1} {packages_size} Packages
+ {packages_sha1} {packages_size} main/binary-amd64/Packages
 SHA256:
- {packages_sha256} {packages_size} Packages
+ {packages_sha256} {packages_size} main/binary-amd64/Packages
 """
 
         logger.info("Generated Release file content")
@@ -199,3 +217,46 @@ SHA256:
         except (OSError, FileNotFoundError):
             # Return a mock hash for testing when file doesn't exist
             return hashlib.sha256(file_path.encode()).hexdigest()
+
+    def _get_installed_size(self, deb_file_path: str) -> int:
+        """Extract installed size from .deb file control information.
+        
+        Args:
+            deb_file_path: Path to the .deb file
+            
+        Returns:
+            Installed size in kilobytes
+        """
+        try:
+            import subprocess
+            import tempfile
+            
+            # Use dpkg-deb to extract control information
+            result = subprocess.run(
+                ["dpkg-deb", "--info", deb_file_path],
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+            
+            if result.returncode == 0:
+                # Parse the control information for Installed-Size
+                for line in result.stdout.split('\n'):
+                    if line.strip().startswith('Installed-Size:'):
+                        size_str = line.split(':', 1)[1].strip()
+                        return int(size_str)
+            
+            logger.warning(f"Could not extract installed size from {deb_file_path}, using estimate")
+            
+        except (subprocess.SubprocessError, subprocess.TimeoutExpired, FileNotFoundError, ValueError) as e:
+            logger.warning(f"Failed to extract installed size from {deb_file_path}: {e}, using estimate")
+        except (OSError, FileNotFoundError):
+            logger.warning(f"File not found: {deb_file_path}, using estimate")
+        
+        # Fallback: estimate based on file size (typical compression ratio 2-3x)
+        try:
+            file_size = os.path.getsize(deb_file_path)
+            return int(file_size / 1024 * 2.5)  # Convert to KB and apply compression ratio
+        except (OSError, FileNotFoundError):
+            # Final fallback for testing
+            return 450000  # Reasonable estimate for a desktop application (~450MB)
