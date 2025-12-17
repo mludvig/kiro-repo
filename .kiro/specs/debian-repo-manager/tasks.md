@@ -47,7 +47,7 @@
   - **Property 3: Download and Storage Integrity**
   - **Validates: Requirements 2.1, 2.2, 2.5**
 
-- [ ] 5. Implement debian repository builder
+- [x] 5. Implement debian repository builder
   - Create RepositoryBuilder class for generating debian repository structure
   - Implement Packages file generation with metadata for all historical versions
   - Implement Release file generation with checksums and repository information
@@ -55,11 +55,11 @@
   - Run ruff check and format before completion
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 5.1 Write property test for repository structure completeness
+- [x] 5.1 Write property test for repository structure completeness
   - **Property 4: Repository Structure Completeness**
   - **Validates: Requirements 3.1, 3.2**
 
-- [ ] 5.2 Write property test for repository metadata generation
+- [x] 5.2 Write property test for repository metadata generation
   - **Property 5: Repository Metadata Generation**
   - **Validates: Requirements 3.3, 3.4, 3.5**
 
