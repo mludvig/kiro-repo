@@ -63,7 +63,7 @@
   - **Property 5: Repository Metadata Generation**
   - **Validates: Requirements 3.3, 3.4, 3.5**
 
-- [ ] 6. Implement S3 publisher with proper permissions
+- [x] 6. Implement S3 publisher with proper permissions
   - Create S3Publisher class for uploading repository files
   - Set public read permissions on all uploaded files
   - Configure correct content types for different file extensions
@@ -72,7 +72,7 @@
   - Run ruff check and format before completion
   - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5_
 
-- [ ] 6.1 Write property test for S3 upload consistency
+- [x] 6.1 Write property test for S3 upload consistency
   - **Property 6: S3 Upload Consistency**
   - **Validates: Requirements 4.1, 4.2, 4.3, 4.4**
 
