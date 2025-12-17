@@ -17,7 +17,12 @@ logger = logging.getLogger(__name__)
 class VersionManager:
     """Manages version tracking and comparison using DynamoDB."""
 
-    def __init__(self, table_name: str | None = None, region: str | None = None, validate_permissions: bool = True):
+    def __init__(
+        self,
+        table_name: str | None = None,
+        region: str | None = None,
+        validate_permissions: bool = True,
+    ):
         """Initialize the version manager.
 
         Args:

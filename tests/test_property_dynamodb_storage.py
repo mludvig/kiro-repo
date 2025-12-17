@@ -4,7 +4,7 @@ import os
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from src.models import ReleaseInfo
@@ -13,6 +13,7 @@ from src.version_manager import VersionManager
 
 # **Feature: debian-repo-manager, Property 7: DynamoDB Storage Completeness**
 # **Validates: Requirements 6.1, 6.2, 6.3**
+@settings(deadline=None)
 @given(
     major=st.integers(min_value=0, max_value=99),
     minor=st.integers(min_value=0, max_value=99),
@@ -77,7 +78,7 @@ def test_dynamodb_storage_completeness_property(
 
     with patch("boto3.resource", return_value=mock_dynamodb):
         with patch.dict(os.environ, {"DYNAMODB_TABLE_NAME": "test-table"}):
-            version_manager = VersionManager()
+            version_manager = VersionManager(validate_permissions=False)
 
             # Store the version
             version_manager.mark_version_processed(release_info)

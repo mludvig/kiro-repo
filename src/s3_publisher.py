@@ -19,7 +19,12 @@ logger = logging.getLogger(__name__)
 class S3Publisher:
     """Handles uploading repository files to S3 with proper permissions."""
 
-    def __init__(self, bucket_name: str | None = None, region: str | None = None, validate_permissions: bool = True):
+    def __init__(
+        self,
+        bucket_name: str | None = None,
+        region: str | None = None,
+        validate_permissions: bool = True,
+    ):
         """Initialize S3Publisher.
 
         Args:

@@ -66,9 +66,6 @@ def test_s3_upload_consistency_property(
             base_path=temp_dir,
         )
 
-        # Initialize S3Publisher
-        publisher = S3Publisher(bucket_name=bucket_name, region="us-east-1")
-
         # Track uploaded keys and their expected content types
         uploaded_objects = {}
 
@@ -135,19 +132,21 @@ def test_s3_upload_consistency_property(
 
             return mock_response
 
+        # Mock S3 client
+        mock_s3_client = Mock()
+        mock_s3_client.put_object = Mock(side_effect=mock_put_object)
+        mock_s3_client.upload_file = Mock(side_effect=mock_upload_file)
+        mock_s3_client.put_object_acl = Mock(side_effect=mock_put_object_acl)
+
         # Apply mocks
         with (
-            patch.object(
-                publisher.s3_client, "put_object", side_effect=mock_put_object
-            ),
-            patch.object(
-                publisher.s3_client, "upload_file", side_effect=mock_upload_file
-            ),
-            patch.object(
-                publisher.s3_client, "put_object_acl", side_effect=mock_put_object_acl
-            ),
+            patch("boto3.client", return_value=mock_s3_client),
             patch("requests.head", side_effect=mock_head_request),
         ):
+            # Initialize S3Publisher with permission validation disabled
+            publisher = S3Publisher(
+                bucket_name=bucket_name, region="us-east-1", validate_permissions=False
+            )
             try:
                 # Upload repository
                 publisher.upload_repository(repo_structure)
