@@ -11,5 +11,14 @@ __pycache__/
 .coverage
 
 .terraform/
-terraform.tfstate
+terraform.tfstate*
 .terraform.lock.hcl
+*.tfvars
+
+# Build artifacts
+build/
+*.zip
+dist/
+
+# Deployment artifacts
+response.json

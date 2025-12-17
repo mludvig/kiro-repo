@@ -44,6 +44,7 @@ resource "aws_sns_topic_policy" "success_notifications_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowLambdaPublish"
         Effect = "Allow"
         Principal = {
           AWS = aws_iam_role.lambda_role.arn
@@ -62,6 +63,7 @@ resource "aws_sns_topic_policy" "failure_notifications_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowLambdaPublish"
         Effect = "Allow"
         Principal = {
           AWS = aws_iam_role.lambda_role.arn
@@ -70,6 +72,7 @@ resource "aws_sns_topic_policy" "failure_notifications_policy" {
         Resource = aws_sns_topic.failure_notifications.arn
       },
       {
+        Sid    = "AllowCloudWatchPublish"
         Effect = "Allow"
         Principal = {
           Service = "cloudwatch.amazonaws.com"

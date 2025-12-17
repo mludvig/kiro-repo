@@ -128,12 +128,13 @@
   - All terraform files should be in terraform/ folder
   - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5_
 
-- [ ] 12. Create deployment package and configuration
+- [x] 12. Create deployment package and configuration
   - Create deployment script for packaging Lambda function
   - Add environment-specific configuration files
-  - Create README with deployment and usage instructions
-  - Add example terraform.tfvars file
   - _Requirements: 8.5_
 
 - [ ] 13. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
+
+- [ ] 14. Documentation
+  - Create README.md with a high-level overview and project purpose, don't go into details about the installation

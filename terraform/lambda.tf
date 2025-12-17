@@ -71,26 +71,31 @@ resource "aws_iam_role_policy" "lambda_policy" {
           aws_sns_topic.success_notifications.arn,
           aws_sns_topic.failure_notifications.arn
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage"
+        ]
+        Resource = aws_sqs_queue.dlq.arn
       }
     ]
   })
 }
 
-# Create deployment package
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = var.lambda_source_path
-  output_path = "${var.project_name}-${var.env}.zip"
-  excludes    = ["__pycache__", "*.pyc", "tests", ".pytest_cache"]
+# Lambda deployment package (created by deploy.sh script)
+# The deployment script creates a package with all dependencies included
+locals {
+  lambda_zip_path = "../build/${var.project_name}-${var.env}.zip"
 }
 
 # Lambda function
 resource "aws_lambda_function" "debian_repo_manager" {
-  filename         = data.archive_file.lambda_zip.output_path
+  filename         = local.lambda_zip_path
   function_name    = "${var.project_name}-${var.env}"
   role            = aws_iam_role.lambda_role.arn
   handler         = "main.lambda_handler"
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+  source_code_hash = filebase64sha256(local.lambda_zip_path)
   runtime         = "python3.12"
   timeout         = var.lambda_timeout
   memory_size     = var.lambda_memory_size
