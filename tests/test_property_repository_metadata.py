@@ -125,7 +125,7 @@ def test_repository_metadata_generation_property(releases):
         )
 
         # Verify file size is included with checksums
-        size_pattern = r"\d+\s+Packages"
+        size_pattern = r"\d+\s+main/binary-amd64/Packages"
         assert re.search(size_pattern, release_content), (
             "File size not found in Release file"
         )

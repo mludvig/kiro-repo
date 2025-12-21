@@ -24,7 +24,10 @@ class RepositoryBuilder:
         logger.info(f"Initialized RepositoryBuilder with base path: {base_path}")
 
     def create_repository_structure(
-        self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None, bucket_name: str | None = None
+        self,
+        releases: list[ReleaseInfo],
+        local_files_map: dict[str, LocalReleaseFiles] | None = None,
+        bucket_name: str | None = None,
     ) -> RepositoryStructure:
         """Create complete debian repository structure.
 
@@ -53,25 +56,16 @@ class RepositoryBuilder:
         else:
             # Fallback if bucket name not provided
             from .config import ENV_S3_BUCKET, get_env_var
+
             bucket_name = get_env_var(ENV_S3_BUCKET, required=True)
             kiro_list_content = self.generate_kiro_list_file(bucket_name)
 
-        # Create list of local release files
+        # Create list of local release files - only include versions with downloaded files
         deb_files = []
         for release in releases:
             if local_files_map and release.version in local_files_map:
                 # Use actual downloaded files
                 deb_files.append(local_files_map[release.version])
-            else:
-                # Fallback to expected paths (for backward compatibility)
-                deb_files.append(
-                    LocalReleaseFiles(
-                        deb_file_path=f"/tmp/kiro_{release.version}_amd64.deb",
-                        certificate_path=f"/tmp/kiro_{release.version}.pem",
-                        signature_path=f"/tmp/kiro_{release.version}.bin",
-                        version=release.version,
-                    )
-                )
 
         return RepositoryStructure(
             packages_file_content=packages_content,
@@ -81,7 +75,11 @@ class RepositoryBuilder:
             base_path=str(self.base_path),
         )
 
-    def generate_packages_file(self, releases: list[ReleaseInfo], local_files_map: dict[str, LocalReleaseFiles] | None = None) -> str:
+    def generate_packages_file(
+        self,
+        releases: list[ReleaseInfo],
+        local_files_map: dict[str, LocalReleaseFiles] | None = None,
+    ) -> str:
         """Generate Packages file content with metadata for all versions.
 
         Args:
@@ -227,10 +225,10 @@ SHA256:
 
     def generate_kiro_list_file(self, bucket_name: str) -> str:
         """Generate kiro.list file content for APT repository configuration.
-        
+
         Args:
             bucket_name: S3 bucket name for the repository
-            
+
         Returns:
             Content for kiro.list file
         """

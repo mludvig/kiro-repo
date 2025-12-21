@@ -74,9 +74,11 @@ class PackageDownloader:
         try:
             # Extract original filenames from URLs
             deb_filename = self._extract_filename_from_url(release_info.deb_url)
-            cert_filename = self._extract_filename_from_url(release_info.certificate_url)
+            cert_filename = self._extract_filename_from_url(
+                release_info.certificate_url
+            )
             sig_filename = self._extract_filename_from_url(release_info.signature_url)
-            
+
             # Download each file type with original names
             deb_path = self._download_file(
                 release_info.deb_url, version_dir, deb_filename
@@ -215,20 +217,21 @@ class PackageDownloader:
         """
         # Extract filename from URL path
         from urllib.parse import urlparse
+
         parsed_url = urlparse(url)
         filename = Path(parsed_url.path).name
-        
+
         # Fallback to generic names if extraction fails
         if not filename:
-            if url.endswith('.deb') or 'deb' in url:
+            if url.endswith(".deb") or "deb" in url:
                 filename = "package.deb"
-            elif url.endswith('.pem') or 'certificate' in url:
+            elif url.endswith(".pem") or "certificate" in url:
                 filename = "certificate.pem"
-            elif url.endswith('.bin') or 'signature' in url:
+            elif url.endswith(".bin") or "signature" in url:
                 filename = "signature.bin"
             else:
                 filename = "unknown_file"
-        
+
         return filename
 
     def _cleanup_directory(self, directory: Path) -> None:

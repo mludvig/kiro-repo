@@ -62,6 +62,7 @@ def test_s3_upload_consistency_property(
         repo_structure = RepositoryStructure(
             packages_file_content=packages_content,
             release_file_content=release_content,
+            kiro_list_content=f"deb [trusted=yes] https://{bucket_name}.s3.amazonaws.com/ stable main\n",
             deb_files=[local_files],
             base_path=temp_dir,
         )
@@ -70,9 +71,8 @@ def test_s3_upload_consistency_property(
         uploaded_objects = {}
 
         # Mock S3 client operations
-        def mock_put_object(Bucket, Key, Body, ContentType, ACL, **kwargs):  # noqa: N803
+        def mock_put_object(Bucket, Key, Body, ContentType, **kwargs):  # noqa: N803
             assert Bucket == bucket_name, "Should upload to correct bucket"
-            assert ACL == "public-read", "Should set public-read ACL"
             assert ContentType == "text/plain", (
                 "Text files should have correct content type"
             )
@@ -80,14 +80,12 @@ def test_s3_upload_consistency_property(
             uploaded_objects[Key] = {
                 "content": Body.decode("utf-8") if isinstance(Body, bytes) else Body,
                 "content_type": ContentType,
-                "acl": ACL,
             }
             return {}
 
         def mock_upload_file(file_path, bucket, key, ExtraArgs=None):  # noqa: N803
             assert bucket == bucket_name, "Should upload to correct bucket"
             assert ExtraArgs is not None, "Should provide extra args"
-            assert ExtraArgs["ACL"] == "public-read", "Should set public-read ACL"
 
             # Verify content type is appropriate for file extension
             content_type = ExtraArgs["ContentType"]
@@ -108,14 +106,11 @@ def test_s3_upload_consistency_property(
             uploaded_objects[key] = {
                 "file_path": file_path,
                 "content_type": content_type,
-                "acl": ExtraArgs["ACL"],
             }
             return {}
 
         def mock_put_object_acl(Bucket, Key, ACL):  # noqa: N803
-            assert Bucket == bucket_name, "Should set ACL on correct bucket"
-            assert ACL == "public-read", "Should set public-read ACL"
-            assert Key in uploaded_objects, "Should only set ACL on uploaded objects"
+            # This method is not used by S3Publisher, but keeping for compatibility
             return {}
 
         def mock_head_request(url, **kwargs):
@@ -155,6 +150,7 @@ def test_s3_upload_consistency_property(
                 expected_keys = {
                     "dists/stable/main/binary-amd64/Packages",
                     "dists/stable/Release",
+                    "kiro.list",
                     f"pool/main/k/kiro/kiro_{version}_amd64.deb",
                     f"pool/main/k/kiro/kiro_{version}.pem",
                     f"pool/main/k/kiro/kiro_{version}.bin",
@@ -174,12 +170,6 @@ def test_s3_upload_consistency_property(
                 assert uploaded_objects[release_key]["content"] == release_content, (
                     "Release file should have correct content"
                 )
-
-                # Verify all objects have public-read ACL
-                for key, obj_info in uploaded_objects.items():
-                    assert obj_info["acl"] == "public-read", (
-                        f"Object {key} should have public-read ACL"
-                    )
 
                 # Verify file objects reference correct local files
                 deb_key = f"pool/main/k/kiro/kiro_{version}_amd64.deb"

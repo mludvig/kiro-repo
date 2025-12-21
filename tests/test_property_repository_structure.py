@@ -68,8 +68,9 @@ def test_repository_structure_completeness_property(releases):
         # Create repository structure
         repo_structure = builder.create_repository_structure(releases)
 
-        # Verify all releases are included in the structure
-        assert len(repo_structure.deb_files) == len(releases)
+        # Verify deb_files only contains releases with local files (when no local_files_map provided, should be empty)
+        # Since we're not providing local_files_map, deb_files should be empty
+        assert len(repo_structure.deb_files) == 0
 
         # Verify Packages file contains all versions
         packages_content = repo_structure.packages_file_content
@@ -94,17 +95,19 @@ def test_repository_structure_completeness_property(releases):
         assert repo_structure.base_path is not None
         assert len(repo_structure.base_path) > 0
 
-        # Verify each deb file entry has proper structure
+        # Verify each deb file entry has proper structure (if any exist)
         for deb_file in repo_structure.deb_files:
             assert deb_file.version is not None
             assert deb_file.deb_file_path.endswith(".deb")
             assert deb_file.certificate_path.endswith(".pem")
             assert deb_file.signature_path.endswith(".bin")
 
-        # Verify version consistency between releases and deb_files
-        release_versions = {r.version for r in releases}
-        deb_file_versions = {df.version for df in repo_structure.deb_files}
-        assert release_versions == deb_file_versions
+        # When local_files_map is not provided, deb_files should be empty
+        # but Packages file should still contain all releases
+        if len(repo_structure.deb_files) == 0:
+            # Verify Packages file still contains all versions
+            for release in releases:
+                assert f"Version: {release.version}" in packages_content
 
     except (ValueError, AttributeError):
         # Skip invalid inputs that don't meet our requirements

@@ -219,7 +219,7 @@ class S3Publisher:
 
     def set_public_permissions(self, s3_keys: list[str]) -> None:
         """Set public read permissions on S3 objects.
-        
+
         Note: Public access is handled by bucket policy, so this method
         just logs that permissions are managed at the bucket level.
 
