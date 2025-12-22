@@ -11,6 +11,7 @@ from src.config import (
     setup_logging,
 )
 from src.metadata_client import MetadataClient
+from src.notification_service import NotificationService
 from src.package_downloader import PackageDownloader
 from src.repository_builder import RepositoryBuilder
 from src.s3_publisher import S3Publisher
@@ -62,6 +63,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         package_downloader = PackageDownloader()
         repository_builder = RepositoryBuilder()
         s3_publisher = S3Publisher(validate_permissions=False)
+        notification_service = NotificationService(validate_permissions=False)
 
         # Main workflow
         operation_logger.start_operation("metadata_fetch")
@@ -124,6 +126,9 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         # Clean up downloaded files
         package_downloader.cleanup_all_downloads()
 
+        # Send success notification
+        notification_service.send_success_notification(current_release)
+
         # Log successful completion
         system_logger.increment_metric("operations_completed", 1)
         system_logger.set_metric("latest_version_processed", current_release.version)
@@ -135,6 +140,14 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         }
 
     except Exception as e:
+        # Send failure notification
+        try:
+            notification_service = NotificationService(validate_permissions=False)
+            notification_service.send_failure_notification(e, "Lambda execution")
+        except Exception as notification_error:
+            # If notification fails, just log it - don't fail the entire function
+            logger.error(f"Failed to send failure notification: {notification_error}")
+
         # Log error and system failure
         system_logger.increment_metric("operations_failed", 1)
         operation_logger.log_error("lambda_execution", e)
