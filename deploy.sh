@@ -128,11 +128,16 @@ if [ ! -d ".terraform" ]; then
     terraform init
 fi
 
+# Set the state file
+export TF_CLI_ARGS="-state=${ENVIRONMENT}.tfstate"
+
 # Check if tfvars file exists
-TFVARS_FILE="terraform.tfvars"
+TFVARS_FILE="${ENVIRONMENT}.tfvars"
 if [ ! -f "$TFVARS_FILE" ]; then
     print_warning "No terraform.tfvars file found. Using defaults and environment variables."
     print_warning "Consider creating $TFVARS_FILE from terraform.tfvars.example"
+else
+    TF_CLI_ARGS="${TF_CLI_ARGS} -var-file=$TFVARS_FILE"
 fi
 
 # Set Terraform variables
@@ -143,15 +148,15 @@ export TF_VAR_lambda_source_path="../$PACKAGE_DIR"
 case $TERRAFORM_ACTION in
     plan)
         print_status "Running Terraform plan..."
-        terraform plan -var-file="$TFVARS_FILE" 2>/dev/null || terraform plan
+        terraform plan
         ;;
     apply)
         print_status "Running Terraform apply..."
-        terraform apply -var-file="$TFVARS_FILE" -auto-approve 2>/dev/null || terraform apply -auto-approve
+        terraform apply -auto-approve
         ;;
     destroy)
         print_warning "Running Terraform destroy..."
-        terraform destroy -var-file="$TFVARS_FILE" -auto-approve 2>/dev/null || terraform destroy -auto-approve
+        terraform destroy
         ;;
     *)
         print_error "Invalid Terraform action: $TERRAFORM_ACTION. Must be one of: plan, apply, destroy"
@@ -162,12 +167,3 @@ esac
 cd - > /dev/null
 
 print_status "Deployment completed successfully!"
-
-# Show next steps
-echo
-print_status "Next steps:"
-echo "  1. Check the Terraform outputs for resource information"
-echo "  2. Monitor CloudWatch logs: /aws/lambda/${PROJECT_NAME}-${ENVIRONMENT}"
-echo "  3. Test the Lambda function manually or wait for the scheduled execution"
-echo "  4. Check S3 bucket for repository files"
-echo "  5. Verify DynamoDB table for version tracking"
