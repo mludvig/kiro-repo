@@ -10,6 +10,12 @@ variable "project_name" {
   default     = "kiro-debian-repo-manager"
 }
 
+variable "repo_bucket_name" {
+  description = "Name of the S3 bucket for the repository"
+  type        = string
+  default     = "kiro-deb-repo"
+}
+
 variable "aws_region" {
   description = "AWS region"
   type        = string

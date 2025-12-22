@@ -1,18 +1,11 @@
 # S3 bucket for hosting the debian repository
 resource "aws_s3_bucket" "repository" {
-  bucket = "${var.project_name}-repo-${var.env}-${random_string.bucket_suffix.result}"
+  bucket = var.repo_bucket_name
 
   tags = merge(var.tags, {
-    Name        = "${var.project_name}-repo-${var.env}"
+    Name        = var.repo_bucket_name
     Environment = var.env
   })
-}
-
-# Random string for bucket name uniqueness
-resource "random_string" "bucket_suffix" {
-  length  = 8
-  special = false
-  upper   = false
 }
 
 # S3 bucket versioning
