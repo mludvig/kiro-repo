@@ -59,9 +59,9 @@ class NotificationService:
                 f"Successfully processed Kiro IDE version {release.version}\n\n"
                 f"Release Details:\n"
                 f"- Version: {release.version}\n"
-                f"- Architecture: {release.architecture}\n"
-                f"- Package Size: {release.size_bytes:,} bytes\n"
-                f"- Download URL: {release.download_url}\n\n"
+                f"- Architecture: amd64\n"
+                f"- Download URL: {release.deb_url}\n"
+                f"- Published: {release.pub_date}\n\n"
                 f"The Debian repository has been updated and is available for installation."
             )
         
