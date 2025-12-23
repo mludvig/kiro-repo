@@ -79,6 +79,15 @@ class S3Publisher:
             )
             uploaded_keys.append(release_key)
 
+            # Upload InRelease file (copy of Release for unsigned repos)
+            inrelease_key = "dists/stable/InRelease"
+            self._upload_content(
+                inrelease_key,
+                repo_structure.release_file_content,
+                content_type="text/plain",
+            )
+            uploaded_keys.append(inrelease_key)
+
             # Upload kiro.list file
             kiro_list_key = "kiro.list"
             self._upload_content(

@@ -206,6 +206,65 @@ class PackageDownloader:
                 sha256_hash.update(chunk)
         return sha256_hash.hexdigest()
 
+    def _calculate_md5(self, file_path: str) -> str:
+        """Calculate MD5 checksum of a file.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            MD5 checksum as hex string
+        """
+        md5_hash = hashlib.md5()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                md5_hash.update(chunk)
+        return md5_hash.hexdigest()
+
+    def _calculate_sha1(self, file_path: str) -> str:
+        """Calculate SHA1 checksum of a file.
+
+        Args:
+            file_path: Path to the file
+
+        Returns:
+            SHA1 checksum as hex string
+        """
+        sha1_hash = hashlib.sha1()
+        with open(file_path, "rb") as f:
+            for chunk in iter(lambda: f.read(4096), b""):
+                sha1_hash.update(chunk)
+        return sha1_hash.hexdigest()
+
+    def populate_file_metadata(
+        self, release_info: ReleaseInfo, local_files: LocalReleaseFiles
+    ) -> None:
+        """Populate file metadata in ReleaseInfo after download.
+
+        Args:
+            release_info: ReleaseInfo object to populate
+            local_files: Downloaded local files
+        """
+        logger.info(f"Populating file metadata for version {release_info.version}")
+
+        deb_path = Path(local_files.deb_file_path)
+
+        # Store actual filename
+        release_info.actual_filename = deb_path.name
+
+        # Calculate file size
+        release_info.file_size = deb_path.stat().st_size
+
+        # Calculate checksums
+        release_info.md5_hash = self._calculate_md5(str(deb_path))
+        release_info.sha1_hash = self._calculate_sha1(str(deb_path))
+        release_info.sha256_hash = self._calculate_sha256(str(deb_path))
+
+        logger.info(
+            f"File metadata populated: {release_info.actual_filename}, "
+            f"{release_info.file_size} bytes"
+        )
+
     def _extract_filename_from_url(self, url: str) -> str:
         """Extract filename from URL.
 

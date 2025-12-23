@@ -134,6 +134,18 @@ class VersionManager:
             "notes": release_info.notes,
         }
 
+        # Add file metadata if available
+        if release_info.actual_filename is not None:
+            item["actual_filename"] = release_info.actual_filename
+        if release_info.file_size is not None:
+            item["file_size"] = release_info.file_size
+        if release_info.md5_hash is not None:
+            item["md5_hash"] = release_info.md5_hash
+        if release_info.sha1_hash is not None:
+            item["sha1_hash"] = release_info.sha1_hash
+        if release_info.sha256_hash is not None:
+            item["sha256_hash"] = release_info.sha256_hash
+
         try:
             self.table.put_item(Item=item)
             logger.info(f"Successfully stored version {release_info.version}")
@@ -205,6 +217,12 @@ class VersionManager:
                     signature_url=item["signature_url"],
                     notes=item.get("notes", ""),
                     processed_timestamp=processed_timestamp,
+                    # File metadata (may be None for older entries)
+                    actual_filename=item.get("actual_filename"),
+                    file_size=item.get("file_size"),
+                    md5_hash=item.get("md5_hash"),
+                    sha1_hash=item.get("sha1_hash"),
+                    sha256_hash=item.get("sha256_hash"),
                 )
                 releases.append(release)
 

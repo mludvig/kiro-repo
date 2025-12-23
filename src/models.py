@@ -16,6 +16,12 @@ class ReleaseInfo:
     signature_url: str
     notes: str
     processed_timestamp: datetime | None = None
+    # File metadata (populated after download)
+    actual_filename: str | None = None
+    file_size: int | None = None
+    md5_hash: str | None = None
+    sha1_hash: str | None = None
+    sha256_hash: str | None = None
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> "ReleaseInfo":

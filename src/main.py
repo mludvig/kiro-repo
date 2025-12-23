@@ -95,6 +95,10 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         operation_logger.start_operation("package_download")
         local_files = package_downloader.download_release_files(current_release)
         package_downloader.verify_package_integrity(local_files)
+
+        # Populate file metadata in the release info
+        package_downloader.populate_file_metadata(current_release, local_files)
+
         operation_logger.complete_operation(
             "package_download", success=True, version=current_release.version
         )
