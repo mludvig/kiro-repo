@@ -11,6 +11,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 
 from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_S3_BUCKET, get_env_var
+from src.instructions_generator import InstructionsGenerator
 from src.models import RepositoryStructure
 
 logger = logging.getLogger(__name__)
@@ -45,6 +46,9 @@ class S3Publisher:
         # Initialize S3 client
         self.s3_client = boto3.client("s3", region_name=self.region)
 
+        # Initialize instructions generator
+        self.instructions_generator = InstructionsGenerator(logger)
+
         logger.info(f"Initialized S3Publisher for bucket: {self.bucket_name}")
 
     def upload_repository(self, repo_structure: RepositoryStructure) -> None:
@@ -61,6 +65,26 @@ class S3Publisher:
         uploaded_keys = []
 
         try:
+            # Generate and upload index.html with installation instructions
+            logger.info("Generating installation instructions HTML")
+            repo_url = f"https://{self.bucket_name}.s3.amazonaws.com"
+
+            # Determine environment from bucket name (dev/prod)
+            environment = "dev" if "dev" in self.bucket_name.lower() else "prod"
+
+            index_html_content = self.instructions_generator.generate_index_html(
+                repo_url, environment
+            )
+
+            index_key = "index.html"
+            self._upload_content(
+                index_key,
+                index_html_content,
+                content_type="text/html",
+            )
+            uploaded_keys.append(index_key)
+            logger.info("Successfully uploaded index.html")
+
             # Upload Packages file
             packages_key = "dists/stable/main/binary-amd64/Packages"
             self._upload_content(
