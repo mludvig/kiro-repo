@@ -14,6 +14,8 @@ This document specifies the requirements for a Python script/lambda function tha
 - **DynamoDB_Store**: The DynamoDB table that tracks processed package versions and metadata
 - **Version_History**: The collection of all previously processed package versions stored in DynamoDB_Store
 - **Terraform_Infrastructure**: The Infrastructure as Code configuration for deploying the lambda function and associated AWS resources
+- **Installation_Instructions**: The HTML page and README that provide users with commands to add the repository to their system
+- **Repository_Configuration_Package**: A manually-created debian package (kiro-repo) that configures the system to use the Kiro repository
 
 ## Requirements
 
@@ -112,3 +114,40 @@ This document specifies the requirements for a Python script/lambda function tha
 3. WHEN setting up S3 access, THE Terraform_Infrastructure SHALL create the S3_Repository bucket with public read permissions
 4. WHEN configuring permissions, THE Terraform_Infrastructure SHALL create IAM roles with least-privilege access to required services
 5. WHEN deploying infrastructure, THE Terraform_Infrastructure SHALL support multiple environments through variable configuration
+
+### Requirement 9
+
+**User Story:** As a Debian/Ubuntu user, I want clear installation instructions hosted in the repository, so that I can quickly add the Kiro repository to my system.
+
+#### Acceptance Criteria
+
+1. WHEN the repository is published to S3, THE Kiro_Package_Manager SHALL generate an index.html file with installation instructions
+2. WHEN generating the index.html, THE system SHALL include the correct repository URL based on the deployment environment (dev/prod)
+3. WHEN generating the index.html, THE system SHALL provide a two-step installation approach: manual configuration and repository configuration package
+4. WHEN the index.html is generated, THE system SHALL upload it to the S3_Repository root with public read permissions
+5. WHEN users access the repository URL, THE system SHALL serve the index.html as the default page
+
+### Requirement 10
+
+**User Story:** As a system maintainer, I want a repository configuration package that sets up the Kiro repository, so that users can easily install and the repository URL can be updated if needed.
+
+#### Acceptance Criteria
+
+1. THE system SHALL provide a manually-created debian package named kiro-repo that configures the repository
+2. WHEN the kiro-repo package is installed, THE package SHALL add the appropriate sources.list.d entry
+3. WHEN the kiro-repo package is installed, THE package SHALL configure any required GPG keys or certificates
+4. WHEN the repository URL needs to change, THE system SHALL allow updating via a new version of the kiro-repo package
+5. THE kiro-repo package SHALL be versioned to track repository configuration changes
+6. THE system SHALL provide a build script that creates the kiro-repo debian package and uploads it to S3
+
+### Requirement 11
+
+**User Story:** As a developer, I want a README.md in the repository root that explains the project from a user perspective, so that users understand what the repository provides.
+
+#### Acceptance Criteria
+
+1. THE repository SHALL include a README.md file in the project root
+2. WHEN the README.md is created, THE system SHALL provide a brief overview of the Kiro IDE repository
+3. WHEN the README.md is created, THE system SHALL include a link to the production repository URL only
+4. WHEN the README.md is created, THE system SHALL avoid implementation details and focus on user-facing information
+5. WHEN the README.md is created, THE system SHALL assume baseline Debian/Ubuntu package management knowledge

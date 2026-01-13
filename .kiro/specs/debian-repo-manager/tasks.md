@@ -136,5 +136,40 @@
 - [ ] 13. Final checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 14. Documentation
-  - Create README.md with a high-level overview and project purpose, don't go into details about the installation
+- [ ] 14. Implement installation instructions generator
+  - [-] 14.1 Create InstructionsGenerator class
+    - Implement generate_index_html method that creates HTML with both installation methods
+    - Include repository URL in both quick install (kiro-repo.deb) and manual install sections
+    - Generate minimal, clean HTML with basic styling
+    - Run ruff check and format before completion
+    - _Requirements: 9.1, 9.2, 9.3_
+
+  - [ ] 14.2 Write property test for installation instructions completeness
+    - **Property 11: Installation Instructions Completeness**
+    - **Validates: Requirements 9.1, 9.2, 9.3**
+
+  - [ ] 14.3 Integrate instructions generator into S3 publisher
+    - Generate index.html during repository upload
+    - Upload index.html to S3 root with text/html content type
+    - Ensure public read permissions on index.html
+    - Run ruff check and format before completion
+    - _Requirements: 9.4_
+
+- [ ] 15. Create kiro-repo package build script
+  - Create build-kiro-repo.sh shell script in scripts/ directory
+  - Accept parameters for repo URL, version, S3 bucket, and environment
+  - Generate debian package structure (DEBIAN/control, DEBIAN/postinst, etc/apt/sources.list.d/kiro.list)
+  - Build .deb package using dpkg-deb
+  - Upload to S3 with public read permissions
+  - Update repository Packages and Release files after upload
+  - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
+
+- [ ] 16. Create project README.md
+  - Write brief README.md in repository root
+  - Include description of the Kiro IDE Debian repository
+  - Add link to production repository URL only
+  - Keep content user-focused and concise
+  - _Requirements: 11.1, 11.2, 11.3, 11.4, 11.5_
+
+- [ ] 17. Final checkpoint - Ensure all tests pass
+  - Ensure all tests pass, ask the user if questions arise.
