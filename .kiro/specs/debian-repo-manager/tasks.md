@@ -155,7 +155,7 @@
     - Run ruff check and format before completion
     - _Requirements: 9.4_
 
-- [ ] 15. Create kiro-repo package build script
+- [x] 15. Create kiro-repo package build script
   - Create build-kiro-repo.sh shell script in scripts/ directory
   - Accept parameters for repo URL, version, S3 bucket, and environment
   - Generate debian package structure (DEBIAN/control, DEBIAN/postinst, etc/apt/sources.list.d/kiro.list)
