@@ -91,6 +91,12 @@ class InstructionsGenerator:
             padding: 12px;
             margin: 20px 0;
         }}
+        .info {{
+            background-color: #d1ecf1;
+            border-left: 4px solid #17a2b8;
+            padding: 12px;
+            margin: 20px 0;
+        }}
         .recommended {{
             color: #28a745;
             font-weight: bold;
@@ -100,6 +106,10 @@ class InstructionsGenerator:
 <body>
     <div class="container">
         <h1>Kiro IDE Debian Repository</h1>
+
+        <div class="info">
+            <strong>Note:</strong> This page is available at <code>{repo_url}/index.html</code>
+        </div>
 
         <p>Welcome to the Kiro IDE Debian repository. This repository provides easy installation and updates for Kiro IDE on Debian and Ubuntu systems.</p>
 

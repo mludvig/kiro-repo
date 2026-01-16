@@ -21,8 +21,15 @@ from src.version_manager import VersionManager
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     """AWS Lambda handler function.
 
+    Supports manual rebuild via event parameter:
+    - force_rebuild: Set to true to rebuild repository from DynamoDB without checking for new versions
+
+    Example invocation:
+        aws lambda invoke --function-name debian-repo-manager \\
+            --payload '{"force_rebuild": true}' response.json
+
     Args:
-        event: Lambda event data
+        event: Lambda event data (supports "force_rebuild" boolean parameter)
         context: Lambda context object
 
     Returns:
@@ -34,6 +41,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     operation_logger = system_logger.get_operation_logger()
 
     try:
+        # Check for force rebuild flag
+        force_rebuild = event.get("force_rebuild", False)
+        if force_rebuild:
+            logger.info(
+                "Force rebuild requested - will rebuild repository from DynamoDB"
+            )
+
         # Log system startup
         system_logger.log_system_start(
             lambda_request_id=getattr(context, "aws_request_id", "unknown"),
@@ -65,55 +79,60 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         s3_publisher = S3Publisher(validate_permissions=False)
         notification_service = NotificationService(validate_permissions=False)
 
-        # Main workflow
-        operation_logger.start_operation("metadata_fetch")
-        current_release = metadata_client.get_current_release()
-        operation_logger.complete_operation(
-            "metadata_fetch", success=True, version=current_release.version
-        )
+        # Check for new version and download if needed (skip if force rebuild)
+        local_files_map = {}
+        current_release = None
 
-        # Check if version is already processed
-        operation_logger.start_operation("version_check")
-        if version_manager.is_version_processed(current_release.version):
-            logger.info(
-                f"Version {current_release.version} already processed, skipping"
-            )
+        if not force_rebuild:
+            # Normal workflow: check for new versions
+            operation_logger.start_operation("metadata_fetch")
+            current_release = metadata_client.get_current_release()
             operation_logger.complete_operation(
-                "version_check", success=True, already_processed=True
+                "metadata_fetch", success=True, version=current_release.version
             )
 
-            system_logger.log_system_termination(success=True)
-            return {
-                "statusCode": 200,
-                "body": f"Version {current_release.version} already processed",
-            }
-        operation_logger.complete_operation(
-            "version_check", success=True, already_processed=False
-        )
+            # Check if version is already processed
+            operation_logger.start_operation("version_check")
+            if version_manager.is_version_processed(current_release.version):
+                logger.info(
+                    f"Version {current_release.version} already processed, skipping"
+                )
+                operation_logger.complete_operation(
+                    "version_check", success=True, already_processed=True
+                )
 
-        # Download new version
-        operation_logger.start_operation("package_download")
-        local_files = package_downloader.download_release_files(current_release)
-        package_downloader.verify_package_integrity(local_files)
+                system_logger.log_system_termination(success=True)
+                return {
+                    "statusCode": 200,
+                    "body": f"Version {current_release.version} already processed",
+                }
+            operation_logger.complete_operation(
+                "version_check", success=True, already_processed=False
+            )
 
-        # Populate file metadata in the release info
-        package_downloader.populate_file_metadata(current_release, local_files)
+            # Download new version
+            operation_logger.start_operation("package_download")
+            local_files = package_downloader.download_release_files(current_release)
+            package_downloader.verify_package_integrity(local_files)
 
-        operation_logger.complete_operation(
-            "package_download", success=True, version=current_release.version
-        )
+            # Populate file metadata in the release info
+            package_downloader.populate_file_metadata(current_release, local_files)
 
-        # Mark version as processed
-        operation_logger.start_operation("version_storage")
-        version_manager.mark_version_processed(current_release)
-        operation_logger.complete_operation("version_storage", success=True)
+            operation_logger.complete_operation(
+                "package_download", success=True, version=current_release.version
+            )
 
-        # Get all releases for repository building
+            # Mark version as processed
+            operation_logger.start_operation("version_storage")
+            version_manager.mark_version_processed(current_release)
+            operation_logger.complete_operation("version_storage", success=True)
+
+            # Create a mapping of the current release to its downloaded files
+            local_files_map = {current_release.version: local_files}
+
+        # Shared path: Build and upload repository (for both normal and force rebuild)
         operation_logger.start_operation("repository_build")
         all_releases = version_manager.get_all_releases()
-
-        # Create a mapping of the current release to its downloaded files
-        local_files_map = {current_release.version: local_files}
 
         repository_structure = repository_builder.create_repository_structure(
             all_releases, local_files_map, s3_bucket
@@ -127,21 +146,34 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         s3_publisher.upload_repository(repository_structure)
         operation_logger.complete_operation("s3_upload", success=True)
 
-        # Clean up downloaded files
-        package_downloader.cleanup_all_downloads()
+        # Clean up downloaded files (if any)
+        if local_files_map:
+            package_downloader.cleanup_all_downloads()
 
-        # Send success notification
-        notification_service.send_success_notification(current_release)
+        # Send success notification (only for new version processing)
+        if current_release:
+            notification_service.send_success_notification(current_release)
 
         # Log successful completion
         system_logger.increment_metric("operations_completed", 1)
-        system_logger.set_metric("latest_version_processed", current_release.version)
+        if current_release:
+            system_logger.set_metric(
+                "latest_version_processed", current_release.version
+            )
+        else:
+            system_logger.set_metric("rebuild_releases_count", len(all_releases))
         system_logger.log_system_termination(success=True)
 
-        return {
-            "statusCode": 200,
-            "body": f"Successfully processed version {current_release.version}",
-        }
+        if force_rebuild:
+            return {
+                "statusCode": 200,
+                "body": f"Successfully rebuilt repository with {len(all_releases)} releases",
+            }
+        else:
+            return {
+                "statusCode": 200,
+                "body": f"Successfully processed version {current_release.version}",
+            }
 
     except Exception as e:
         # Send failure notification
