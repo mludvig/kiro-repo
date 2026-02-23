@@ -15,21 +15,21 @@ Key architectural changes:
 ## Tasks
 
 - [ ] 1. Create configuration management infrastructure
-  - [ ] 1.1 Add PyYAML dependency to pyproject.toml
+  - [x] 1.1 Add PyYAML dependency to pyproject.toml
     - Add `pyyaml>=6.0` to dependencies section
     - Run `uv sync` to update lock file
     - _Requirements: 6.6_
   
-  - [ ] 1.2 Create package configuration directory structure
+  - [x] 1.2 Create package configuration directory structure
     - Create `config/packages/` directory
     - _Requirements: 6.1_
   
-  - [ ] 1.3 Implement configuration data models
+  - [x] 1.3 Implement configuration data models
     - Create `src/config_manager.py` with `SourceConfig` and `PackageConfig` dataclasses
     - Implement `from_yaml()` class method for loading from YAML files
     - _Requirements: 6.2, 6.3, 6.4, 6.5_
   
-  - [ ] 1.4 Implement ConfigManager class
+  - [x] 1.4 Implement ConfigManager class
     - Implement `load_all_configs()` method to discover and load all package configs
     - Implement `get_config(package_name)` method for specific package lookup
     - _Requirements: 6.7_
