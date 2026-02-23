@@ -132,13 +132,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
 
         # Shared path: Build and upload repository (for both normal and force rebuild)
         operation_logger.start_operation("repository_build")
-        all_releases = version_manager.get_all_releases()
+        all_packages = version_manager.get_all_packages()
 
         repository_structure = repository_builder.create_repository_structure(
-            all_releases, local_files_map, s3_bucket
+            packages=all_packages,
+            local_files_map=local_files_map,
+            bucket_name=s3_bucket,
         )
         operation_logger.complete_operation(
-            "repository_build", success=True, total_releases=len(all_releases)
+            "repository_build", success=True, total_packages=len(all_packages)
         )
 
         # Upload to S3
@@ -161,13 +163,13 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 "latest_version_processed", current_release.version
             )
         else:
-            system_logger.set_metric("rebuild_releases_count", len(all_releases))
+            system_logger.set_metric("rebuild_packages_count", len(all_packages))
         system_logger.log_system_termination(success=True)
 
         if force_rebuild:
             return {
                 "statusCode": 200,
-                "body": f"Successfully rebuilt repository with {len(all_releases)} releases",
+                "body": f"Successfully rebuilt repository with {len(all_packages)} packages",
             }
         else:
             return {

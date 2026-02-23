@@ -6,7 +6,7 @@ import os
 from datetime import UTC, datetime
 from pathlib import Path
 
-from .models import LocalReleaseFiles, ReleaseInfo, RepositoryStructure
+from .models import LocalReleaseFiles, PackageMetadata, ReleaseInfo, RepositoryStructure
 
 logger = logging.getLogger(__name__)
 
@@ -25,27 +25,63 @@ class RepositoryBuilder:
 
     def create_repository_structure(
         self,
-        releases: list[ReleaseInfo],
+        releases: list[ReleaseInfo] | None = None,
+        packages: list[PackageMetadata] | None = None,
         local_files_map: dict[str, LocalReleaseFiles] | None = None,
         bucket_name: str | None = None,
     ) -> RepositoryStructure:
         """Create complete debian repository structure.
 
         Args:
-            releases: List of all release information to include
+            releases: List of all release information to include (legacy, for backward compatibility)
+            packages: List of PackageMetadata for all packages (new multi-package support)
             local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
             bucket_name: S3 bucket name for generating kiro.list file
 
         Returns:
             RepositoryStructure containing all repository files and metadata
         """
-        logger.info(f"Creating repository structure for {len(releases)} releases")
+        # Convert releases to packages if provided (backward compatibility)
+        if releases and not packages:
+            logger.info(
+                f"Converting {len(releases)} legacy releases to PackageMetadata"
+            )
+            packages = []
+            for release in releases:
+                packages.append(
+                    PackageMetadata(
+                        package_name="kiro",
+                        version=release.version,
+                        architecture="amd64",
+                        pub_date=release.pub_date,
+                        deb_url=release.deb_url,
+                        actual_filename=release.actual_filename or "",
+                        file_size=release.file_size or 0,
+                        md5_hash=release.md5_hash or "",
+                        sha1_hash=release.sha1_hash or "",
+                        sha256_hash=release.sha256_hash or "",
+                        certificate_url=release.certificate_url,
+                        signature_url=release.signature_url,
+                        notes=release.notes,
+                        processed_timestamp=release.processed_timestamp,
+                        section="editors",
+                        priority="optional",
+                        maintainer="Kiro Team <support@kiro.dev>",
+                        homepage="https://kiro.dev",
+                        description="Kiro IDE - AI-powered development environment",
+                    )
+                )
 
-        # Create base directory structure
-        self._create_directory_structure()
+        if not packages:
+            packages = []
+
+        logger.info(f"Creating repository structure for {len(packages)} packages")
+
+        # Create base directory structure for all packages
+        self._create_directory_structure(packages)
 
         # Generate Packages file content
-        packages_content = self.generate_packages_file(releases, local_files_map)
+        packages_content = self.generate_packages_file(packages, local_files_map)
 
         # Generate Release file content
         release_content = self.generate_release_file(packages_content)
@@ -62,10 +98,11 @@ class RepositoryBuilder:
 
         # Create list of local release files - only include versions with downloaded files
         deb_files = []
-        for release in releases:
-            if local_files_map and release.version in local_files_map:
-                # Use actual downloaded files
-                deb_files.append(local_files_map[release.version])
+        if releases:
+            for release in releases:
+                if local_files_map and release.version in local_files_map:
+                    # Use actual downloaded files
+                    deb_files.append(local_files_map[release.version])
 
         return RepositoryStructure(
             packages_file_content=packages_content,
@@ -77,80 +114,115 @@ class RepositoryBuilder:
 
     def generate_packages_file(
         self,
-        releases: list[ReleaseInfo],
+        packages: list[PackageMetadata],
         local_files_map: dict[str, LocalReleaseFiles] | None = None,
     ) -> str:
-        """Generate Packages file content with metadata for all versions.
+        """Generate Packages file content with metadata for all packages.
 
         Args:
-            releases: List of release information
+            packages: List of PackageMetadata for all packages
             local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
 
         Returns:
             Packages file content as string
         """
-        logger.info(f"Generating Packages file for {len(releases)} releases")
+        logger.info(f"Generating Packages file for {len(packages)} packages")
 
         packages_entries = []
 
-        for release in releases:
-            # Use stored file metadata if available, otherwise calculate from local files
-            if release.actual_filename and release.file_size and release.md5_hash:
-                # Use stored metadata from DynamoDB
-                filename = f"pool/main/k/kiro/{release.actual_filename}"
-                file_size = release.file_size
-                md5_hash = release.md5_hash
-                sha1_hash = release.sha1_hash
-                sha256_hash = release.sha256_hash
-                logger.debug(f"Using stored metadata for version {release.version}")
-            elif local_files_map and release.version in local_files_map:
-                # Calculate from downloaded files
-                local_files = local_files_map[release.version]
-                actual_deb_path = local_files.deb_file_path
-                actual_filename = Path(actual_deb_path).name
-                filename = f"pool/main/k/kiro/{actual_filename}"
-                file_size = self._get_file_size(actual_deb_path)
-                md5_hash = self._calculate_md5(actual_deb_path)
-                sha1_hash = self._calculate_sha1(actual_deb_path)
-                sha256_hash = self._calculate_sha256(actual_deb_path)
-                logger.debug(
-                    f"Calculated metadata from local files for version {release.version}"
-                )
-            else:
-                # Fallback - this should not happen in normal operation
-                logger.warning(
-                    f"No metadata available for version {release.version}, using fallback"
-                )
-                actual_filename = f"kiro_{release.version}_amd64.deb"
-                filename = f"pool/main/k/kiro/{actual_filename}"
-                file_size = 50000000  # 50MB default
-                md5_hash = hashlib.md5(f"{release.version}".encode()).hexdigest()
-                sha1_hash = hashlib.sha1(f"{release.version}".encode()).hexdigest()
-                sha256_hash = hashlib.sha256(f"{release.version}".encode()).hexdigest()
-
-            # Create package entry
-            entry = f"""Package: kiro
-Version: {release.version}
-Architecture: amd64
-Maintainer: Kiro Team <support@kiro.dev>
-Depends: libc6 (>= 2.17)
-Section: editors
-Priority: optional
-Homepage: https://kiro.dev
-Description: Kiro IDE - AI-powered development environment
- Kiro is an AI-powered integrated development environment that helps
- developers write better code faster with intelligent assistance.
-Filename: {filename}
-Size: {file_size}
-MD5sum: {md5_hash}
-SHA1: {sha1_hash}
-SHA256: {sha256_hash}"""
-
+        for package in packages:
+            entry = self.generate_package_entry(package, local_files_map)
             packages_entries.append(entry)
 
         packages_content = "\n\n".join(packages_entries) + "\n"
         logger.info("Generated Packages file content")
         return packages_content
+
+    def generate_package_entry(
+        self,
+        package: PackageMetadata,
+        local_files_map: dict[str, LocalReleaseFiles] | None = None,
+    ) -> str:
+        """Generate a single package entry for the Packages file.
+
+        Args:
+            package: PackageMetadata for the package
+            local_files_map: Optional mapping of version -> LocalReleaseFiles for actual downloaded files
+
+        Returns:
+            Package entry as string
+        """
+        # Determine filename and metadata
+        if package.actual_filename and package.file_size and package.md5_hash:
+            # Use stored metadata from DynamoDB
+            filename = f"pool/main/{package.package_name[0]}/{package.package_name}/{package.actual_filename}"
+            file_size = package.file_size
+            md5_hash = package.md5_hash
+            sha1_hash = package.sha1_hash
+            sha256_hash = package.sha256_hash
+            logger.debug(
+                f"Using stored metadata for {package.package_name} version {package.version}"
+            )
+        elif local_files_map and package.version in local_files_map:
+            # Calculate from downloaded files (legacy kiro packages only)
+            local_files = local_files_map[package.version]
+            actual_deb_path = local_files.deb_file_path
+            actual_filename = Path(actual_deb_path).name
+            filename = f"pool/main/{package.package_name[0]}/{package.package_name}/{actual_filename}"
+            file_size = self._get_file_size(actual_deb_path)
+            md5_hash = self._calculate_md5(actual_deb_path)
+            sha1_hash = self._calculate_sha1(actual_deb_path)
+            sha256_hash = self._calculate_sha256(actual_deb_path)
+            logger.debug(
+                f"Calculated metadata from local files for {package.package_name} version {package.version}"
+            )
+        else:
+            # Fallback - this should not happen in normal operation
+            logger.warning(
+                f"No metadata available for {package.package_name} version {package.version}, using fallback"
+            )
+            actual_filename = (
+                f"{package.package_name}_{package.version}_{package.architecture}.deb"
+            )
+            filename = f"pool/main/{package.package_name[0]}/{package.package_name}/{actual_filename}"
+            file_size = 50000000  # 50MB default
+            md5_hash = hashlib.md5(
+                f"{package.package_name}{package.version}".encode()
+            ).hexdigest()
+            sha1_hash = hashlib.sha1(
+                f"{package.package_name}{package.version}".encode()
+            ).hexdigest()
+            sha256_hash = hashlib.sha256(
+                f"{package.package_name}{package.version}".encode()
+            ).hexdigest()
+
+        # Build the package entry
+        entry_lines = [
+            f"Package: {package.package_name}",
+            f"Version: {package.version}",
+            f"Architecture: {package.architecture}",
+            f"Maintainer: {package.maintainer}",
+        ]
+
+        # Add depends if present
+        if package.depends:
+            entry_lines.append(f"Depends: {package.depends}")
+
+        entry_lines.extend(
+            [
+                f"Section: {package.section}",
+                f"Priority: {package.priority}",
+                f"Homepage: {package.homepage}",
+                f"Description: {package.description}",
+                f"Filename: {filename}",
+                f"Size: {file_size}",
+                f"MD5sum: {md5_hash}",
+                f"SHA1: {sha1_hash}",
+                f"SHA256: {sha256_hash}",
+            ]
+        )
+
+        return "\n".join(entry_lines)
 
     def generate_release_file(self, packages_content: str) -> str:
         """Generate Release file with repository information and checksums.
@@ -192,16 +264,35 @@ SHA256:
         logger.info("Generated Release file content")
         return release_content
 
-    def _create_directory_structure(self) -> None:
-        """Create the basic debian repository directory structure."""
+    def _create_directory_structure(
+        self, packages: list[PackageMetadata] | None = None
+    ) -> None:
+        """Create the debian repository directory structure for all packages.
+
+        Args:
+            packages: List of PackageMetadata to determine which pool directories to create
+        """
         # Create main directories
         self.base_path.mkdir(parents=True, exist_ok=True)
         (self.base_path / "dists" / "stable" / "main" / "binary-amd64").mkdir(
             parents=True, exist_ok=True
         )
-        (self.base_path / "pool" / "main" / "k" / "kiro").mkdir(
-            parents=True, exist_ok=True
-        )
+
+        # Create pool directories for each unique package name
+        if packages:
+            package_names = {pkg.package_name for pkg in packages}
+            for package_name in package_names:
+                # Use first letter of package name for pool organization
+                first_letter = package_name[0]
+                (self.base_path / "pool" / "main" / first_letter / package_name).mkdir(
+                    parents=True, exist_ok=True
+                )
+                logger.debug(f"Created pool directory for package: {package_name}")
+        else:
+            # Fallback: create kiro directory for backward compatibility
+            (self.base_path / "pool" / "main" / "k" / "kiro").mkdir(
+                parents=True, exist_ok=True
+            )
 
         logger.info("Created repository directory structure")
 

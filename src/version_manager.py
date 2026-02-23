@@ -9,7 +9,7 @@ from botocore.exceptions import ClientError
 
 from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_DYNAMODB_TABLE, get_env_var
-from src.models import ReleaseInfo
+from src.models import PackageMetadata, ReleaseInfo
 
 logger = logging.getLogger(__name__)
 
@@ -46,8 +46,258 @@ class VersionManager:
 
         logger.info(f"Initialized VersionManager with table: {self.table_name}")
 
+    def get_all_packages(self) -> list[PackageMetadata]:
+        """Get all stored package metadata from DynamoDB.
+
+        Returns:
+            List of PackageMetadata objects for all packages.
+
+        Raises:
+            ClientError: If DynamoDB operation fails.
+        """
+        logger.info("Retrieving all package metadata from DynamoDB")
+
+        try:
+            packages = []
+            response = self.table.scan()
+
+            # Process first page
+            packages.extend(self._items_to_packages(response.get("Items", [])))
+
+            # Handle pagination
+            while "LastEvaluatedKey" in response:
+                logger.debug(
+                    f"Scanning next page, found {len(packages)} packages so far"
+                )
+                response = self.table.scan(
+                    ExclusiveStartKey=response["LastEvaluatedKey"]
+                )
+                packages.extend(self._items_to_packages(response.get("Items", [])))
+
+            logger.info(f"Retrieved {len(packages)} total packages")
+            return packages
+
+        except ClientError as e:
+            logger.error(f"Failed to retrieve all packages: {e}")
+            raise
+
+    def get_packages_by_name(self, package_name: str) -> list[PackageMetadata]:
+        """Get all versions of a specific package from DynamoDB.
+
+        Args:
+            package_name: Name of the package to retrieve (e.g., "kiro", "kiro-repo").
+
+        Returns:
+            List of PackageMetadata objects for the specified package.
+
+        Raises:
+            ClientError: If DynamoDB operation fails.
+        """
+        logger.info(
+            f"Retrieving all versions of package '{package_name}' from DynamoDB"
+        )
+
+        try:
+            packages = []
+            response = self.table.scan(
+                FilterExpression="package_name = :pkg_name",
+                ExpressionAttributeValues={":pkg_name": package_name},
+            )
+
+            # Process first page
+            packages.extend(self._items_to_packages(response.get("Items", [])))
+
+            # Handle pagination
+            while "LastEvaluatedKey" in response:
+                logger.debug(
+                    f"Scanning next page, found {len(packages)} packages so far"
+                )
+                response = self.table.scan(
+                    FilterExpression="package_name = :pkg_name",
+                    ExpressionAttributeValues={":pkg_name": package_name},
+                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                )
+                packages.extend(self._items_to_packages(response.get("Items", [])))
+
+            logger.info(
+                f"Retrieved {len(packages)} versions of package '{package_name}'"
+            )
+            return packages
+
+        except ClientError as e:
+            logger.error(f"Failed to retrieve packages for '{package_name}': {e}")
+            raise
+
+    def store_package_metadata(self, metadata: PackageMetadata) -> None:
+        """Store package metadata in DynamoDB.
+
+        Args:
+            metadata: Package metadata to store.
+
+        Raises:
+            ClientError: If DynamoDB operation fails.
+        """
+        logger.info(
+            f"Storing metadata for {metadata.package_name} version {metadata.version}"
+        )
+
+        # Set processed timestamp if not already set
+        if metadata.processed_timestamp is None:
+            metadata.processed_timestamp = datetime.utcnow()
+
+        item = {
+            "package_id": metadata.package_id,
+            "package_name": metadata.package_name,
+            "version": metadata.version,
+            "architecture": metadata.architecture,
+            "pub_date": metadata.pub_date,
+            "deb_url": metadata.deb_url,
+            "actual_filename": metadata.actual_filename,
+            "file_size": metadata.file_size,
+            "md5_hash": metadata.md5_hash,
+            "sha1_hash": metadata.sha1_hash,
+            "sha256_hash": metadata.sha256_hash,
+            "processed_timestamp": metadata.processed_timestamp.isoformat(),
+            "section": metadata.section,
+            "priority": metadata.priority,
+            "maintainer": metadata.maintainer,
+            "homepage": metadata.homepage,
+            "description": metadata.description,
+        }
+
+        # Add optional fields if present
+        if metadata.certificate_url is not None:
+            item["certificate_url"] = metadata.certificate_url
+        if metadata.signature_url is not None:
+            item["signature_url"] = metadata.signature_url
+        if metadata.notes is not None:
+            item["notes"] = metadata.notes
+        if metadata.depends is not None:
+            item["depends"] = metadata.depends
+
+        try:
+            self.table.put_item(Item=item)
+            logger.info(
+                f"Successfully stored {metadata.package_name} version {metadata.version}"
+            )
+
+        except ClientError as e:
+            logger.error(
+                f"Failed to store {metadata.package_name} version {metadata.version}: {e}"
+            )
+            raise
+
+    def is_package_version_processed(self, package_name: str, version: str) -> bool:
+        """Check if a specific package version has been processed.
+
+        Args:
+            package_name: Name of the package (e.g., "kiro", "kiro-repo").
+            version: Version string to check.
+
+        Returns:
+            True if package version has been processed, False otherwise.
+
+        Raises:
+            ClientError: If DynamoDB operation fails.
+        """
+        package_id = f"{package_name}#{version}"
+        logger.debug(f"Checking if package {package_id} has been processed")
+
+        try:
+            # Try new schema first (package_id as key)
+            response = self.table.get_item(
+                Key={"package_id": package_id}, ProjectionExpression="package_id"
+            )
+
+            exists = "Item" in response
+            logger.debug(f"Package {package_id} processed: {exists}")
+            return exists
+
+        except ClientError as e:
+            # Check if this is a schema mismatch error (old schema with version key)
+            if e.response["Error"]["Code"] == "ValidationException":
+                logger.debug(
+                    f"New schema check failed, trying old schema for version {version}"
+                )
+                try:
+                    # Try old schema (version as key) for backward compatibility
+                    response = self.table.get_item(
+                        Key={"version": version}, ProjectionExpression="version"
+                    )
+                    exists = "Item" in response
+                    logger.debug(f"Version {version} processed (old schema): {exists}")
+                    return exists
+                except ClientError as old_schema_error:
+                    logger.error(
+                        f"Failed to check version {version} with both schemas: {old_schema_error}"
+                    )
+                    raise
+            else:
+                logger.error(f"Failed to check package {package_id}: {e}")
+                raise
+
+    def _items_to_packages(self, items: list[dict[str, Any]]) -> list[PackageMetadata]:
+        """Convert DynamoDB items to PackageMetadata objects.
+
+        Args:
+            items: List of DynamoDB items.
+
+        Returns:
+            List of PackageMetadata objects.
+        """
+        packages = []
+
+        for item in items:
+            try:
+                # Parse processed timestamp if present
+                processed_timestamp = None
+                if "processed_timestamp" in item:
+                    processed_timestamp = datetime.fromisoformat(
+                        item["processed_timestamp"]
+                    )
+
+                # Backward compatibility: if package_name is missing, assume "kiro"
+                package_name = item.get("package_name", "kiro")
+
+                package = PackageMetadata(
+                    package_name=package_name,
+                    version=item["version"],
+                    architecture=item.get("architecture", "amd64"),
+                    pub_date=item["pub_date"],
+                    deb_url=item["deb_url"],
+                    actual_filename=item.get("actual_filename", ""),
+                    file_size=item.get("file_size", 0),
+                    md5_hash=item.get("md5_hash", ""),
+                    sha1_hash=item.get("sha1_hash", ""),
+                    sha256_hash=item.get("sha256_hash", ""),
+                    certificate_url=item.get("certificate_url"),
+                    signature_url=item.get("signature_url"),
+                    notes=item.get("notes"),
+                    processed_timestamp=processed_timestamp,
+                    section=item.get("section", "editors"),
+                    priority=item.get("priority", "optional"),
+                    maintainer=item.get("maintainer", "Kiro Team <support@kiro.dev>"),
+                    homepage=item.get("homepage", "https://kiro.dev"),
+                    description=item.get("description", ""),
+                    depends=item.get("depends"),
+                )
+                packages.append(package)
+
+            except (KeyError, ValueError) as e:
+                logger.warning(
+                    f"Skipping invalid item {item.get('package_id', item.get('version', 'unknown'))}: {e}"
+                )
+                continue
+
+        return packages
+
+    # Legacy methods for backward compatibility with ReleaseInfo
+
     def get_processed_versions(self) -> list[str]:
-        """Get list of all processed version numbers.
+        """Get list of all processed version numbers (legacy method).
+
+        This method is maintained for backward compatibility. New code should use
+        get_all_packages() instead.
 
         Returns:
             List of version strings that have been processed.
@@ -83,7 +333,10 @@ class VersionManager:
             raise
 
     def is_version_processed(self, version: str) -> bool:
-        """Check if a specific version has been processed.
+        """Check if a specific version has been processed (legacy method).
+
+        This method is maintained for backward compatibility. New code should use
+        is_package_version_processed() instead.
 
         Args:
             version: Version string to check.
@@ -94,23 +347,14 @@ class VersionManager:
         Raises:
             ClientError: If DynamoDB operation fails.
         """
-        logger.debug(f"Checking if version {version} has been processed")
-
-        try:
-            response = self.table.get_item(
-                Key={"version": version}, ProjectionExpression="version"
-            )
-
-            exists = "Item" in response
-            logger.debug(f"Version {version} processed: {exists}")
-            return exists
-
-        except ClientError as e:
-            logger.error(f"Failed to check version {version}: {e}")
-            raise
+        # For backward compatibility, assume "kiro" package
+        return self.is_package_version_processed("kiro", version)
 
     def mark_version_processed(self, release_info: ReleaseInfo) -> None:
-        """Mark a version as processed by storing its information in DynamoDB.
+        """Mark a version as processed by storing its information in DynamoDB (legacy method).
+
+        This method is maintained for backward compatibility. New code should use
+        store_package_metadata() instead.
 
         Args:
             release_info: Release information to store.
@@ -124,38 +368,36 @@ class VersionManager:
         if release_info.processed_timestamp is None:
             release_info.processed_timestamp = datetime.utcnow()
 
-        item = {
-            "version": release_info.version,
-            "deb_url": release_info.deb_url,
-            "certificate_url": release_info.certificate_url,
-            "signature_url": release_info.signature_url,
-            "pub_date": release_info.pub_date,
-            "processed_timestamp": release_info.processed_timestamp.isoformat(),
-            "notes": release_info.notes,
-        }
+        # Convert ReleaseInfo to PackageMetadata for storage
+        metadata = PackageMetadata(
+            package_name="kiro",
+            version=release_info.version,
+            architecture="amd64",
+            pub_date=release_info.pub_date,
+            deb_url=release_info.deb_url,
+            actual_filename=release_info.actual_filename or "",
+            file_size=release_info.file_size or 0,
+            md5_hash=release_info.md5_hash or "",
+            sha1_hash=release_info.sha1_hash or "",
+            sha256_hash=release_info.sha256_hash or "",
+            certificate_url=release_info.certificate_url,
+            signature_url=release_info.signature_url,
+            notes=release_info.notes,
+            processed_timestamp=release_info.processed_timestamp,
+            section="editors",
+            priority="optional",
+            maintainer="Kiro Team <support@kiro.dev>",
+            homepage="https://kiro.dev",
+            description="Kiro IDE - AI-powered development environment",
+        )
 
-        # Add file metadata if available
-        if release_info.actual_filename is not None:
-            item["actual_filename"] = release_info.actual_filename
-        if release_info.file_size is not None:
-            item["file_size"] = release_info.file_size
-        if release_info.md5_hash is not None:
-            item["md5_hash"] = release_info.md5_hash
-        if release_info.sha1_hash is not None:
-            item["sha1_hash"] = release_info.sha1_hash
-        if release_info.sha256_hash is not None:
-            item["sha256_hash"] = release_info.sha256_hash
-
-        try:
-            self.table.put_item(Item=item)
-            logger.info(f"Successfully stored version {release_info.version}")
-
-        except ClientError as e:
-            logger.error(f"Failed to store version {release_info.version}: {e}")
-            raise
+        self.store_package_metadata(metadata)
 
     def get_all_releases(self) -> list[ReleaseInfo]:
-        """Get all stored release information from DynamoDB.
+        """Get all stored release information from DynamoDB (legacy method).
+
+        This method is maintained for backward compatibility. New code should use
+        get_all_packages() instead.
 
         Returns:
             List of ReleaseInfo objects for all processed versions.
@@ -163,7 +405,7 @@ class VersionManager:
         Raises:
             ClientError: If DynamoDB operation fails.
         """
-        logger.info("Retrieving all release information from DynamoDB")
+        logger.info("Retrieving all release information from DynamoDB (legacy method)")
 
         try:
             releases = []
@@ -190,7 +432,7 @@ class VersionManager:
             raise
 
     def _items_to_releases(self, items: list[dict[str, Any]]) -> list[ReleaseInfo]:
-        """Convert DynamoDB items to ReleaseInfo objects.
+        """Convert DynamoDB items to ReleaseInfo objects (legacy method).
 
         Args:
             items: List of DynamoDB items.
@@ -213,8 +455,8 @@ class VersionManager:
                     version=item["version"],
                     pub_date=item["pub_date"],
                     deb_url=item["deb_url"],
-                    certificate_url=item["certificate_url"],
-                    signature_url=item["signature_url"],
+                    certificate_url=item.get("certificate_url", ""),
+                    signature_url=item.get("signature_url", ""),
                     notes=item.get("notes", ""),
                     processed_timestamp=processed_timestamp,
                     # File metadata (may be None for older entries)
