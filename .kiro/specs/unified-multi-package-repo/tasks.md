@@ -122,8 +122,8 @@ Key architectural changes:
     - Define `get_package_file_path(metadata)` method signature
     - _Requirements: 17.1, 17.2_
 
-- [ ] 7. Implement kiro package handler
-  - [ ] 7.1 Create KiroPackageHandler class
+- [x] 7. Implement kiro package handler
+  - [x] 7.1 Create KiroPackageHandler class
     - Create `src/package_handlers/kiro_handler.py`
     - Implement `check_new_version()` using existing MetadataClient
     - Implement `acquire_package()` using existing PackageDownloader
@@ -131,7 +131,7 @@ Key architectural changes:
     - Convert ReleaseInfo to PackageMetadata with config fields
     - _Requirements: 4.5, 9.1_
   
-  - [ ]* 7.2 Write unit tests for KiroPackageHandler
+  - [x] 7.2 Write unit tests for KiroPackageHandler
     - Test version checking with mocked metadata endpoint
     - Test package acquisition and metadata conversion
     - Test error handling for download failures
