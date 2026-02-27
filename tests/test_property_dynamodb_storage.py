@@ -57,9 +57,13 @@ def test_dynamodb_storage_completeness_property(
     # Mock successful put_item operation
     mock_table.put_item.return_value = {}
 
-    # Mock get_item to return the stored item
+    # New schema: package_id is the primary key
+    package_id = f"kiro#{release_info.version}"
     stored_item = {
+        "package_id": package_id,
+        "package_name": "kiro",
         "version": release_info.version,
+        "architecture": "amd64",
         "deb_url": release_info.deb_url,
         "certificate_url": release_info.certificate_url,
         "signature_url": release_info.signature_url,
@@ -87,7 +91,9 @@ def test_dynamodb_storage_completeness_property(
             mock_table.put_item.assert_called_once()
             put_item_args = mock_table.put_item.call_args[1]["Item"]
 
-            # Verify all required fields are present in storage
+            # Verify new schema fields are present in storage
+            assert put_item_args["package_id"] == package_id
+            assert put_item_args["package_name"] == "kiro"
             assert put_item_args["version"] == release_info.version
             assert put_item_args["deb_url"] == release_info.deb_url
             assert put_item_args["certificate_url"] == release_info.certificate_url
@@ -96,13 +102,13 @@ def test_dynamodb_storage_completeness_property(
             assert put_item_args["notes"] == release_info.notes
             assert "processed_timestamp" in put_item_args
 
-            # Verify version can be checked for existence
+            # Verify version can be checked for existence (legacy method delegates to new schema)
             exists = version_manager.is_version_processed(release_info.version)
             assert exists is True
 
-            # Verify get_item was called with correct key
+            # Verify get_item was called with new schema key (package_id)
             mock_table.get_item.assert_called_once_with(
-                Key={"version": release_info.version}, ProjectionExpression="version"
+                Key={"package_id": package_id}, ProjectionExpression="package_id"
             )
 
             # Verify version appears in processed versions list
@@ -130,7 +136,7 @@ def test_dynamodb_storage_completeness_property(
             mock_table.scan.side_effect = [
                 {
                     "Items": [stored_item],
-                    "LastEvaluatedKey": {"version": version},
+                    "LastEvaluatedKey": {"package_id": package_id},
                 },
                 {
                     "Items": [],
@@ -147,4 +153,4 @@ def test_dynamodb_storage_completeness_property(
             # Verify pagination was handled with ExclusiveStartKey
             second_call_kwargs = mock_table.scan.call_args_list[1][1]
             assert "ExclusiveStartKey" in second_call_kwargs
-            assert second_call_kwargs["ExclusiveStartKey"] == {"version": version}
+            assert second_call_kwargs["ExclusiveStartKey"] == {"package_id": package_id}

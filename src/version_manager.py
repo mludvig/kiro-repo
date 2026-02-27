@@ -5,11 +5,13 @@ from datetime import datetime
 from typing import Any
 
 import boto3
+from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
 
 from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_DYNAMODB_TABLE, get_env_var
 from src.models import PackageMetadata, ReleaseInfo
+from src.utils import parse_version
 
 logger = logging.getLogger(__name__)
 
@@ -99,10 +101,8 @@ class VersionManager:
 
         try:
             packages = []
-            response = self.table.scan(
-                FilterExpression="package_name = :pkg_name",
-                ExpressionAttributeValues={":pkg_name": package_name},
-            )
+            filter_expr = Attr("package_name").eq(package_name)
+            response = self.table.scan(FilterExpression=filter_expr)
 
             # Process first page
             packages.extend(self._items_to_packages(response.get("Items", [])))
@@ -113,8 +113,7 @@ class VersionManager:
                     f"Scanning next page, found {len(packages)} packages so far"
                 )
                 response = self.table.scan(
-                    FilterExpression="package_name = :pkg_name",
-                    ExpressionAttributeValues={":pkg_name": package_name},
+                    FilterExpression=filter_expr,
                     ExclusiveStartKey=response["LastEvaluatedKey"],
                 )
                 packages.extend(self._items_to_packages(response.get("Items", [])))
@@ -127,6 +126,35 @@ class VersionManager:
         except ClientError as e:
             logger.error(f"Failed to retrieve packages for '{package_name}': {e}")
             raise
+
+    def get_latest_package(self, package_name: str) -> PackageMetadata | None:
+        """Get the latest version of a specific package from DynamoDB.
+
+        Retrieves all versions of the package and returns the one with the
+        highest semantic version using parse_version for comparison.
+
+        Args:
+            package_name: Name of the package (e.g., "kiro", "kiro-repo").
+
+        Returns:
+            PackageMetadata for the latest version, or None if no packages found.
+
+        Raises:
+            ClientError: If DynamoDB operation fails.
+        """
+        logger.info(f"Retrieving latest version of package '{package_name}'")
+
+        packages = self.get_packages_by_name(package_name)
+
+        if not packages:
+            logger.info(f"No packages found for '{package_name}'")
+            return None
+
+        latest = max(packages, key=lambda p: parse_version(p.version))
+        logger.info(
+            f"Latest version of '{package_name}' is {latest.version}"
+        )
+        return latest
 
     def store_package_metadata(self, metadata: PackageMetadata) -> None:
         """Store package metadata in DynamoDB.
@@ -204,7 +232,6 @@ class VersionManager:
         logger.debug(f"Checking if package {package_id} has been processed")
 
         try:
-            # Try new schema first (package_id as key)
             response = self.table.get_item(
                 Key={"package_id": package_id}, ProjectionExpression="package_id"
             )
@@ -214,27 +241,8 @@ class VersionManager:
             return exists
 
         except ClientError as e:
-            # Check if this is a schema mismatch error (old schema with version key)
-            if e.response["Error"]["Code"] == "ValidationException":
-                logger.debug(
-                    f"New schema check failed, trying old schema for version {version}"
-                )
-                try:
-                    # Try old schema (version as key) for backward compatibility
-                    response = self.table.get_item(
-                        Key={"version": version}, ProjectionExpression="version"
-                    )
-                    exists = "Item" in response
-                    logger.debug(f"Version {version} processed (old schema): {exists}")
-                    return exists
-                except ClientError as old_schema_error:
-                    logger.error(
-                        f"Failed to check version {version} with both schemas: {old_schema_error}"
-                    )
-                    raise
-            else:
-                logger.error(f"Failed to check package {package_id}: {e}")
-                raise
+            logger.error(f"Failed to check package {package_id}: {e}")
+            raise
 
     def _items_to_packages(self, items: list[dict[str, Any]]) -> list[PackageMetadata]:
         """Convert DynamoDB items to PackageMetadata objects.
