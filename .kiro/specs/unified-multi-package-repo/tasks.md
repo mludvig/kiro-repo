@@ -60,19 +60,19 @@ Key architectural changes:
     - Configure github_release source (commented out/placeholder)
     - _Requirements: 6.2, 6.3, 17.2_
 
-- [ ] 3. Update data models and utilities
-  - [ ] 3.1 Update PackageMetadata model in src/models.py
+- [x] 3. Update data models and utilities
+  - [x] 3.1 Update PackageMetadata model in src/models.py
     - Verify all fields present: package_name, version, architecture, section, priority, maintainer, homepage, description, depends
     - Add package_id property that returns f"{package_name}#{version}"
     - _Requirements: 1.2, 1.3, 9.3, 9.4, 9.5_
   
-  - [ ] 3.2 Create version parsing utility
+  - [x] 3.2 Create version parsing utility
     - Create `src/utils.py` with `parse_version()` function
     - Implement semantic version parsing to tuple for comparison
     - Handle edge cases (non-standard versions, missing parts)
     - _Requirements: 12.5, 18.5_
   
-  - [ ]* 3.3 Write property test for semantic version comparison
+  - [x]* 3.3 Write property test for semantic version comparison
     - **Property 19: Semantic Version Comparison**
     - **Validates: Requirements 12.5, 18.5**
 
