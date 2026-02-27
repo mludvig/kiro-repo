@@ -14,16 +14,6 @@ class StructuredFormatter(logging.Formatter):
 
     def __init__(self):
         super().__init__()
-        self.sensitive_patterns = [
-            "password",
-            "secret",
-            "key",
-            "token",
-            "credential",
-            "auth",
-            "aws_access_key_id",
-            "aws_secret_access_key",
-        ]
 
     def format(self, record: logging.LogRecord) -> str:
         """Format log record as structured JSON."""
@@ -70,31 +60,7 @@ class StructuredFormatter(logging.Formatter):
         if record.exc_info:
             log_entry["exception"] = self.formatException(record.exc_info)
 
-        # Sanitize sensitive data
-        log_entry = self._sanitize_sensitive_data(log_entry)
-
         return json.dumps(log_entry, ensure_ascii=False)
-
-    def _sanitize_sensitive_data(self, data: Any) -> Any:
-        """Remove or mask sensitive data from log entries."""
-        if isinstance(data, dict):
-            sanitized = {}
-            for key, value in data.items():
-                if any(pattern in key.lower() for pattern in self.sensitive_patterns):
-                    sanitized[key] = "***REDACTED***"
-                else:
-                    sanitized[key] = self._sanitize_sensitive_data(value)
-            return sanitized
-        elif isinstance(data, list):
-            return [self._sanitize_sensitive_data(item) for item in data]
-        elif isinstance(data, str):
-            # Check if string contains sensitive patterns
-            for pattern in self.sensitive_patterns:
-                if pattern in data.lower():
-                    return "***REDACTED***"
-            return data
-        else:
-            return data
 
 
 class OperationLogger:

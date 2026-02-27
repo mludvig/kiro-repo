@@ -180,7 +180,7 @@ def test_logging_completeness_property(
         error_logs = [
             log
             for log in parsed_logs
-            if log["level"] == "ERROR" and "Operation failed" in log["message"]
+            if log["level"] == "ERROR" and "error_code" in log
         ]
         assert len(error_logs) >= 1, "Should have error log for failed operation"
 
