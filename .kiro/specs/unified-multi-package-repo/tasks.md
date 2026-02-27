@@ -148,15 +148,15 @@ Key architectural changes:
     - Test S3 staging area download with mocked S3 client
     - Test error handling for missing files
 
-- [ ] 9. Implement package router
-  - [ ] 9.1 Create PackageRouter class
+- [x] 9. Implement package router
+  - [x] 9.1 Create PackageRouter class
     - Create `src/package_router.py` with PackageRouter class
     - Implement `__init__()` loading all configs and creating handlers
     - Implement `_create_handler()` factory method based on source type
     - Support "external_download", "build_script", and "github_release" types
     - _Requirements: 4.1, 4.2, 17.2_
   
-  - [ ] 9.2 Implement process_all_packages method
+  - [x] 9.2 Implement process_all_packages method
     - Iterate through all handlers checking for new versions
     - Skip version checking if force_rebuild=True
     - Check DynamoDB for existing versions before processing
@@ -166,11 +166,11 @@ Key architectural changes:
     - Return list of newly processed packages
     - _Requirements: 4.3, 18.1, 18.2_
   
-  - [ ] 9.3 Add cleanup_downloads method
+  - [x] 9.3 Add cleanup_downloads method
     - Clean up /tmp files after processing
     - _Requirements: 14.1_
   
-  - [ ]* 9.4 Write unit tests for PackageRouter
+  - [x] 9.4 Write unit tests for PackageRouter
     - Test handler creation for different source types
     - Test process_all_packages with multiple package types
     - Test force_rebuild skips version checking
