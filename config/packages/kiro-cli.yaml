@@ -1,0 +1,18 @@
+package_name: kiro-cli
+description: "Kiro CLI - Command-line tools for Kiro IDE"
+maintainer: "Kiro Team <support@kiro.dev>"
+homepage: "https://kiro.dev"
+section: devel
+priority: optional
+architecture: amd64
+depends: "kiro (>= 1.0)"
+
+# Source configuration (placeholder - not yet implemented)
+# source:
+#   type: github_release
+#   repository: "kiro-dev/kiro-cli"
+#   asset_pattern: "kiro-cli_*_amd64.deb"
+source:
+  type: github_release
+  repository: "kiro-dev/kiro-cli"
+  asset_pattern: "kiro-cli_*_amd64.deb"

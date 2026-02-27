@@ -42,20 +42,20 @@ Key architectural changes:
     - **Property 21: Configuration File Format**
     - **Validates: Requirements 6.6**
 
-- [ ] 2. Create package configuration files
-  - [ ] 2.1 Create kiro.yaml configuration
+- [x] 2. Create package configuration files
+  - [x] 2.1 Create kiro.yaml configuration
     - Define package metadata (name, description, maintainer, homepage, section, priority, architecture)
     - Configure external_download source with metadata endpoint URL
     - Specify additional files (certificate, signature)
     - _Requirements: 6.2, 6.3, 6.4_
   
-  - [ ] 2.2 Create kiro-repo.yaml configuration
+  - [x] 2.2 Create kiro-repo.yaml configuration
     - Define package metadata with architecture="all"
     - Configure build_script source with staging prefix
     - Document build script path and template locations
     - _Requirements: 6.2, 6.3, 6.5_
   
-  - [ ] 2.3 Create kiro-cli.yaml configuration (placeholder for future)
+  - [x] 2.3 Create kiro-cli.yaml configuration (placeholder for future)
     - Define package metadata with depends="kiro (>= 1.0)"
     - Configure github_release source (commented out/placeholder)
     - _Requirements: 6.2, 6.3, 17.2_

@@ -1,0 +1,17 @@
+package_name: kiro
+description: "Kiro IDE - AI-powered development environment"
+maintainer: "Kiro Team <support@kiro.dev>"
+homepage: "https://kiro.dev"
+section: editors
+priority: optional
+architecture: amd64
+
+# Source configuration
+source:
+  type: external_download
+  metadata_endpoint: "https://download.kiro.dev/linux/metadata.json"
+
+# Additional files to download
+additional_files:
+  - certificate
+  - signature

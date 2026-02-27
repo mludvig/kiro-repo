@@ -1,0 +1,17 @@
+package_name: kiro-repo
+description: "Kiro IDE Repository Configuration"
+maintainer: "Kiro Team <support@kiro.dev>"
+homepage: "https://kiro.dev"
+section: misc
+priority: optional
+architecture: all
+
+# Source configuration
+source:
+  type: build_script
+  staging_prefix: "staging/kiro-repo/"
+
+# Build script configuration (for documentation)
+build:
+  script_path: "scripts/build-kiro-repo.sh"
+  template_dir: "templates/kiro-repo/"
