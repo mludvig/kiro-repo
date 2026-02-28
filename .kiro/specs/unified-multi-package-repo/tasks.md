@@ -179,46 +179,46 @@ Key architectural changes:
 - [x] 10. Checkpoint - Verify package handling layer
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 11. Update repository builder for multi-package support
-  - [ ] 11.1 Update create_repository_structure method
+- [x] 11. Update repository builder for multi-package support
+  - [x] 11.1 Update create_repository_structure method
     - Accept list of PackageMetadata instead of single ReleaseInfo
     - Generate pool directory paths using package_name (pool/main/{first_letter}/{package_name}/)
     - Generate Packages file entries for all packages
     - Include all Debian control fields from PackageMetadata
     - _Requirements: 2.1, 2.2, 2.5, 4.3, 4.4, 10.1, 10.2_
   
-  - [ ] 11.2 Update Packages file generation
+  - [x] 11.2 Update Packages file generation
     - Generate entry for each package with all required fields
     - Use metadata from PackageMetadata (no .deb file reading)
     - Format: Package, Version, Architecture, Maintainer, Section, Priority, Homepage, Description, Filename, Size, MD5sum, SHA1, SHA256
     - _Requirements: 1.5, 9.6, 10.2_
   
-  - [ ] 11.3 Update Release file generation
+  - [x] 11.3 Update Release file generation
     - Include checksums (MD5, SHA1, SHA256) for Packages file
     - Include repository metadata (Origin, Label, Suite, Codename, Architectures, Components, Date, Valid-Until)
     - _Requirements: 10.3, 10.4_
   
-  - [ ]* 11.4 Write property test for pool directory structure
+  - [x] 11.4 Write property test for pool directory structure
     - **Property 7: Pool Directory Structure**
     - **Validates: Requirements 2.1, 2.5, 4.4, 11.1**
   
-  - [ ]* 11.5 Write property test for Packages file entry completeness
+  - [x] 11.5 Write property test for Packages file entry completeness
     - **Property 8: Packages File Entry Completeness**
     - **Validates: Requirements 2.2, 2.6, 10.2**
   
-  - [ ]* 11.6 Write property test for all packages included in Packages file
+  - [x] 11.6 Write property test for all packages included in Packages file
     - **Property 9: All Packages Included in Packages File**
     - **Validates: Requirements 4.3, 10.1**
   
-  - [ ]* 11.7 Write property test for Release file checksums
+  - [x] 11.7 Write property test for Release file checksums
     - **Property 13: Release File Contains Packages Checksums**
     - **Validates: Requirements 10.3**
   
-  - [ ]* 11.8 Write property test for Release file metadata completeness
+  - [x] 11.8 Write property test for Release file metadata completeness
     - **Property 14: Release File Metadata Completeness**
     - **Validates: Requirements 10.4**
   
-  - [ ]* 11.9 Write property test for package type agnostic metadata generation
+  - [x] 11.9 Write property test for package type agnostic metadata generation
     - **Property 22: Package Type Agnostic Metadata Generation**
     - **Validates: Requirements 17.5**
 

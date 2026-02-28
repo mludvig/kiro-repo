@@ -84,7 +84,9 @@ class RepositoryBuilder:
         packages_content = self.generate_packages_file(packages, local_files_map)
 
         # Generate Release file content
-        release_content = self.generate_release_file(packages_content)
+        release_content = self.generate_release_file(
+            packages_content, packages
+        )
 
         # Generate kiro.list file content
         if bucket_name:
@@ -98,11 +100,9 @@ class RepositoryBuilder:
 
         # Create list of local release files - only include versions with downloaded files
         deb_files = []
-        if releases:
-            for release in releases:
-                if local_files_map and release.version in local_files_map:
-                    # Use actual downloaded files
-                    deb_files.append(local_files_map[release.version])
+        if local_files_map:
+            for _version_key, local_files in local_files_map.items():
+                deb_files.append(local_files)
 
         return RepositoryStructure(
             packages_file_content=packages_content,
@@ -224,11 +224,16 @@ class RepositoryBuilder:
 
         return "\n".join(entry_lines)
 
-    def generate_release_file(self, packages_content: str) -> str:
+    def generate_release_file(
+        self,
+        packages_content: str,
+        packages: list[PackageMetadata] | None = None,
+    ) -> str:
         """Generate Release file with repository information and checksums.
 
         Args:
             packages_content: Content of the Packages file
+            packages: Optional list of PackageMetadata to determine architectures
 
         Returns:
             Release file content as string
@@ -241,13 +246,20 @@ class RepositoryBuilder:
         packages_sha1 = hashlib.sha1(packages_content.encode("utf-8")).hexdigest()
         packages_sha256 = hashlib.sha256(packages_content.encode("utf-8")).hexdigest()
 
-        # Generate Release file content with explicit architecture support
+        # Determine architectures from packages
+        if packages:
+            architectures = sorted({pkg.architecture for pkg in packages})
+        else:
+            architectures = ["amd64"]
+        architectures_str = " ".join(architectures)
+
+        # Generate Release file content with dynamic architecture support
         release_content = f"""Origin: Kiro
 Label: Kiro IDE Repository
 Suite: stable
 Codename: stable
 Version: 1.0
-Architectures: amd64
+Architectures: {architectures_str}
 Components: main
 Description: Kiro IDE Debian Repository - Official packages for Kiro IDE
  This repository contains official Debian packages for Kiro IDE.
