@@ -222,8 +222,8 @@ Key architectural changes:
     - **Property 22: Package Type Agnostic Metadata Generation**
     - **Validates: Requirements 17.5**
 
-- [ ] 12. Update S3 publisher for multi-package support
-  - [ ] 12.1 Update upload_repository method
+- [x] 12. Update S3 publisher for multi-package support
+  - [x] 12.1 Update upload_repository method
     - Upload package files to pool directories based on package_name
     - Upload Packages file to dists/stable/main/binary-amd64/
     - Upload Release file to dists/stable/
@@ -231,7 +231,7 @@ Key architectural changes:
     - Set public-read ACL on all files
     - _Requirements: 11.1, 11.2, 11.3, 11.6, 11.7_
   
-  - [ ] 12.2 Implement upload_convenience_copy method
+  - [x] 12.2 Implement upload_convenience_copy method
     - Accept PackageMetadata for latest kiro-repo package
     - Copy from pool directory to repository root (kiro-repo.deb)
     - Use S3 copy_object (no download/upload needed)
@@ -239,27 +239,27 @@ Key architectural changes:
     - Add metadata tags (version, package name)
     - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5, 11.4_
   
-  - [ ]* 12.3 Write property test for convenience copy points to latest version
+  - [x] 12.3 Write property test for convenience copy points to latest version
     - **Property 10: Convenience Copy Points to Latest Version**
     - **Validates: Requirements 3.1, 3.3, 3.5**
   
-  - [ ]* 12.4 Write property test for convenience copy location
+  - [x] 12.4 Write property test for convenience copy location
     - **Property 11: Convenience Copy Location**
     - **Validates: Requirements 3.2, 11.4**
   
-  - [ ]* 12.5 Write property test for convenience copy is regular object
+  - [x] 12.5 Write property test for convenience copy is regular object
     - **Property 12: Convenience Copy is Regular Object**
     - **Validates: Requirements 3.4**
   
-  - [ ]* 12.6 Write property test for S3 upload path correctness
+  - [x] 12.6 Write property test for S3 upload path correctness
     - **Property 15: S3 Upload Path Correctness**
     - **Validates: Requirements 11.2, 11.3, 11.5**
   
-  - [ ]* 12.7 Write property test for Content-Type headers
+  - [x] 12.7 Write property test for Content-Type headers
     - **Property 16: Content-Type Headers**
     - **Validates: Requirements 11.6**
   
-  - [ ]* 12.8 Write property test for public read permissions
+  - [x] 12.8 Write property test for public read permissions
     - **Property 17: Public Read Permissions**
     - **Validates: Requirements 11.7**
 

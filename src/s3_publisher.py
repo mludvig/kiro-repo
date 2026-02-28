@@ -12,7 +12,7 @@ from botocore.exceptions import BotoCoreError, ClientError
 from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_S3_BUCKET, get_env_var
 from src.instructions_generator import InstructionsGenerator
-from src.models import RepositoryStructure
+from src.models import PackageMetadata, RepositoryStructure
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +150,70 @@ class S3Publisher:
         except Exception as e:
             logger.error(f"Failed to upload repository to S3: {e}")
             raise
+
+    def upload_convenience_copy(self, kiro_repo_metadata: PackageMetadata) -> None:
+        """Upload convenience copy of kiro-repo.deb to repository root.
+
+        Args:
+            kiro_repo_metadata: Metadata for latest kiro-repo package
+
+        Raises:
+            ClientError: If S3 copy operation fails
+        """
+        logger.info(
+            f"Uploading convenience copy of {kiro_repo_metadata.package_name} "
+            f"{kiro_repo_metadata.version}"
+        )
+
+        # Determine pool directory path
+        first_letter = kiro_repo_metadata.package_name[0].lower()
+        pool_key = (
+            f"pool/main/{first_letter}/{kiro_repo_metadata.package_name}/"
+            f"{kiro_repo_metadata.actual_filename}"
+        )
+
+        # Destination: repository root
+        convenience_key = "kiro-repo.deb"
+
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                logger.debug(
+                    f"Copying {pool_key} to {convenience_key} (attempt {attempt + 1})"
+                )
+
+                # Copy within S3 (no download/upload needed)
+                self.s3_client.copy_object(
+                    Bucket=self.bucket_name,
+                    CopySource={"Bucket": self.bucket_name, "Key": pool_key},
+                    Key=convenience_key,
+                    ACL="public-read",
+                    ContentType="application/vnd.debian.binary-package",
+                    MetadataDirective="REPLACE",
+                    Metadata={
+                        "version": kiro_repo_metadata.version,
+                        "package": kiro_repo_metadata.package_name,
+                    },
+                )
+
+                logger.info(
+                    f"Uploaded convenience copy: {convenience_key} "
+                    f"(version {kiro_repo_metadata.version})"
+                )
+                return
+
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "Unknown")
+                logger.warning(
+                    f"Copy attempt {attempt + 1} failed for {convenience_key}: {error_code}"
+                )
+
+                if attempt == max_retries - 1:
+                    logger.error(f"All copy attempts failed for {convenience_key}")
+                    raise
+
+                # Exponential backoff
+                time.sleep(2**attempt)
 
     def _upload_content(
         self, key: str, content: str, content_type: str = "text/plain"
