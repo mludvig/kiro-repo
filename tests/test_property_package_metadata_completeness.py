@@ -194,8 +194,8 @@ def test_package_metadata_completeness_property(
     mock_dynamodb = MagicMock()
     mock_dynamodb.Table.return_value = mock_table
 
-    def capture_put_item(Item):
-        stored_items.append(Item)
+    def capture_put_item(**kwargs):
+        stored_items.append(kwargs["Item"])
 
     mock_table.put_item.side_effect = capture_put_item
 

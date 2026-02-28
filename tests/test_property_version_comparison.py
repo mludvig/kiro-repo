@@ -9,7 +9,6 @@ from hypothesis import strategies as st
 
 from src.utils import parse_version
 
-
 # Strategy for generating a single non-negative version component
 version_component = st.integers(min_value=0, max_value=999)
 

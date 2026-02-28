@@ -1,12 +1,11 @@
 """Unit tests for config_manager module."""
 
-import pytest
-from pathlib import Path
-import tempfile
 import textwrap
+from pathlib import Path
 
-from src.config_manager import ConfigManager, PackageConfig, SourceConfig
+import pytest
 
+from src.config_manager import ConfigManager, PackageConfig
 
 KIRO_YAML = textwrap.dedent("""\
     package_name: kiro

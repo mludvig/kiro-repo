@@ -40,7 +40,7 @@ class NotificationService:
             if self.failure_topic_arn:
                 self.sns_client.get_topic_attributes(TopicArn=self.failure_topic_arn)
         except ClientError as e:
-            raise RuntimeError(f"SNS permission validation failed: {e}")
+            raise RuntimeError(f"SNS permission validation failed: {e}") from e
 
     def send_success_notification(
         self, release: ReleaseInfo, message: str = None

@@ -149,8 +149,8 @@ def test_multi_package_type_storage_property(pkg_names, versions, arch):
     mock_dynamodb.Table.return_value = mock_table
 
     # Capture put_item calls
-    def capture_put_item(Item):
-        stored_items.append(Item)
+    def capture_put_item(**kwargs):
+        stored_items.append(kwargs["Item"])
 
     mock_table.put_item.side_effect = capture_put_item
 
@@ -167,7 +167,7 @@ def test_multi_package_type_storage_property(pkg_names, versions, arch):
 
             # --- Verify package_id format ---
             # Req 1.1, 4.2: each stored item has correct composite key
-            for pkg, item in zip(all_packages, stored_items):
+            for pkg, item in zip(all_packages, stored_items, strict=True):
                 expected_id = f"{pkg.package_name}#{pkg.version}"
                 assert item["package_id"] == expected_id
                 assert item["package_name"] == pkg.package_name

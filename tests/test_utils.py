@@ -1,6 +1,5 @@
 """Unit tests for src/utils.py - parse_version function."""
 
-import pytest
 
 from src.utils import parse_version
 
