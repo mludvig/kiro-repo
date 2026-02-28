@@ -263,8 +263,8 @@ Key architectural changes:
     - **Property 17: Public Read Permissions**
     - **Validates: Requirements 11.7**
 
-- [ ] 13. Update main Lambda handler
-  - [ ] 13.1 Update lambda_handler function
+- [x] 13. Update main Lambda handler
+  - [x] 13.1 Update lambda_handler function
     - Add force_rebuild parameter support from event
     - Initialize PackageRouter instead of individual components
     - Call package_router.process_all_packages(force_rebuild)
@@ -276,15 +276,15 @@ Key architectural changes:
     - Update response messages for force_rebuild vs normal processing
     - _Requirements: 1.4, 7.1, 7.2, 7.3, 7.4, 7.5_
   
-  - [ ]* 13.2 Write property test for force rebuild retrieves all packages
+  - [x] 13.2 Write property test for force rebuild retrieves all packages
     - **Property 3: Force Rebuild Retrieves All Packages**
     - **Validates: Requirements 1.4, 7.2**
   
-  - [ ]* 13.3 Write property test for repository metadata generation from DynamoDB alone
+  - [x] 13.3 Write property test for repository metadata generation from DynamoDB alone
     - **Property 4: Repository Metadata Generation from DynamoDB Alone**
     - **Validates: Requirements 1.5, 9.6**
   
-  - [ ]* 13.4 Write integration tests for complete workflows
+  - [x] 13.4 Write integration tests for complete workflows
     - Test normal processing workflow (new package detection, download, storage, repository build)
     - Test force rebuild workflow (skip version checking, use DynamoDB only)
     - Test error handling and recovery

@@ -1,6 +1,8 @@
 """Main entry point for the Debian Repository Manager Lambda function."""
 
+from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from src.aws_permissions import AWSPermissionValidator, validate_iam_role_authentication
 from src.config import (
@@ -10,19 +12,101 @@ from src.config import (
     get_env_var,
     setup_logging,
 )
-from src.metadata_client import MetadataClient
+from src.models import LocalReleaseFiles, PackageMetadata, ReleaseInfo
 from src.notification_service import NotificationService
-from src.package_downloader import PackageDownloader
+from src.package_router import PackageRouter
 from src.repository_builder import RepositoryBuilder
 from src.s3_publisher import S3Publisher
+from src.utils import parse_version
 from src.version_manager import VersionManager
 
 
+def _extract_filename_from_url(url: str) -> str:
+    """Extract filename from URL.
+
+    Args:
+        url: URL to extract filename from
+
+    Returns:
+        Filename extracted from URL
+    """
+    parsed_url = urlparse(url)
+    filename = Path(parsed_url.path).name
+    if not filename:
+        if url.endswith(".deb") or "deb" in url:
+            filename = "package.deb"
+        elif url.endswith(".pem") or "certificate" in url:
+            filename = "certificate.pem"
+        elif url.endswith(".bin") or "signature" in url:
+            filename = "signature.bin"
+        else:
+            filename = "unknown_file"
+    return filename
+
+
+def _create_local_files_from_metadata(
+    metadata: PackageMetadata,
+) -> LocalReleaseFiles:
+    """Create LocalReleaseFiles from PackageMetadata for kiro packages.
+
+    Args:
+        metadata: Package metadata with URLs
+
+    Returns:
+        LocalReleaseFiles with constructed paths
+    """
+    version_dir = f"/tmp/kiro-{metadata.version}"
+    deb_filename = metadata.actual_filename
+    cert_filename = (
+        _extract_filename_from_url(metadata.certificate_url)
+        if metadata.certificate_url
+        else "certificate.pem"
+    )
+    sig_filename = (
+        _extract_filename_from_url(metadata.signature_url)
+        if metadata.signature_url
+        else "signature.bin"
+    )
+    return LocalReleaseFiles(
+        deb_file_path=f"{version_dir}/{deb_filename}",
+        certificate_path=f"{version_dir}/{cert_filename}",
+        signature_path=f"{version_dir}/{sig_filename}",
+        version=metadata.version,
+    )
+
+
+def _convert_package_metadata_to_release_info(
+    metadata: PackageMetadata,
+) -> ReleaseInfo:
+    """Convert PackageMetadata to ReleaseInfo for legacy notifications.
+
+    Args:
+        metadata: Package metadata
+
+    Returns:
+        ReleaseInfo for legacy notification system
+    """
+    return ReleaseInfo(
+        version=metadata.version,
+        pub_date=metadata.pub_date,
+        deb_url=metadata.deb_url,
+        certificate_url=metadata.certificate_url or "",
+        signature_url=metadata.signature_url or "",
+        notes=metadata.notes or "",
+        actual_filename=metadata.actual_filename,
+        file_size=metadata.file_size,
+        md5_hash=metadata.md5_hash,
+        sha1_hash=metadata.sha1_hash,
+        sha256_hash=metadata.sha256_hash,
+        processed_timestamp=metadata.processed_timestamp,
+    )
+
+
 def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
-    """AWS Lambda handler function.
+    """AWS Lambda handler function with multi-package support.
 
     Supports manual rebuild via event parameter:
-    - force_rebuild: Set to true to rebuild repository from DynamoDB without checking for new versions
+    - force_rebuild: Set to true to rebuild repository from DynamoDB
 
     Example invocation:
         aws lambda invoke --function-name debian-repo-manager \\
@@ -35,13 +119,11 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
     Returns:
         Response dictionary with status and message
     """
-    # Set up logging
     system_logger = setup_logging()
     logger = system_logger.logger
     operation_logger = system_logger.get_operation_logger()
 
     try:
-        # Check for force rebuild flag
         force_rebuild = event.get("force_rebuild", False)
         if force_rebuild:
             logger.info(
@@ -71,68 +153,41 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         permission_validator.validate_all_permissions(s3_bucket, dynamodb_table)
         operation_logger.complete_operation("permission_validation", success=True)
 
-        # Initialize components (with permission validation disabled since we already validated)
-        metadata_client = MetadataClient()
+        # Initialize components
+        package_router = PackageRouter(validate_permissions=False)
         version_manager = VersionManager(validate_permissions=False)
-        package_downloader = PackageDownloader()
         repository_builder = RepositoryBuilder()
         s3_publisher = S3Publisher(validate_permissions=False)
         notification_service = NotificationService(validate_permissions=False)
 
-        # Check for new version and download if needed (skip if force rebuild)
-        local_files_map = {}
-        current_release = None
-
+        # Process packages (skip if force rebuild)
+        new_packages: list[PackageMetadata] = []
         if not force_rebuild:
-            # Normal workflow: check for new versions
-            operation_logger.start_operation("metadata_fetch")
-            current_release = metadata_client.get_current_release()
+            operation_logger.start_operation("package_processing")
+            new_packages = package_router.process_all_packages(force_rebuild=False)
             operation_logger.complete_operation(
-                "metadata_fetch", success=True, version=current_release.version
+                "package_processing",
+                success=True,
+                new_packages_count=len(new_packages),
             )
 
-            # Check if version is already processed
-            operation_logger.start_operation("version_check")
-            if version_manager.is_version_processed(current_release.version):
-                logger.info(
-                    f"Version {current_release.version} already processed, skipping"
-                )
-                operation_logger.complete_operation(
-                    "version_check", success=True, already_processed=True
-                )
-
+            if not new_packages:
+                logger.info("No new packages to process")
                 system_logger.log_system_termination(success=True)
                 return {
                     "statusCode": 200,
-                    "body": f"Version {current_release.version} already processed",
+                    "body": "No new packages to process",
                 }
-            operation_logger.complete_operation(
-                "version_check", success=True, already_processed=False
-            )
 
-            # Download new version
-            operation_logger.start_operation("package_download")
-            local_files = package_downloader.download_release_files(current_release)
-            package_downloader.verify_package_integrity(local_files)
-
-            # Populate file metadata in the release info
-            package_downloader.populate_file_metadata(current_release, local_files)
-
-            operation_logger.complete_operation(
-                "package_download", success=True, version=current_release.version
-            )
-
-            # Mark version as processed
-            operation_logger.start_operation("version_storage")
-            version_manager.mark_version_processed(current_release)
-            operation_logger.complete_operation("version_storage", success=True)
-
-            # Create a mapping of the current release to its downloaded files
-            local_files_map = {current_release.version: local_files}
-
-        # Shared path: Build and upload repository (for both normal and force rebuild)
+        # Build repository from all packages in DynamoDB
         operation_logger.start_operation("repository_build")
         all_packages = version_manager.get_all_packages()
+
+        # Create local files map for newly downloaded kiro packages
+        local_files_map: dict[str, LocalReleaseFiles] = {}
+        for pkg in new_packages:
+            if pkg.package_name == "kiro":
+                local_files_map[pkg.version] = _create_local_files_from_metadata(pkg)
 
         repository_structure = repository_builder.create_repository_structure(
             packages=all_packages,
@@ -140,30 +195,41 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             bucket_name=s3_bucket,
         )
         operation_logger.complete_operation(
-            "repository_build", success=True, total_packages=len(all_packages)
+            "repository_build",
+            success=True,
+            total_packages=len(all_packages),
         )
 
         # Upload to S3
         operation_logger.start_operation("s3_upload")
         s3_publisher.upload_repository(repository_structure)
+
+        # Upload convenience copy of latest kiro-repo
+        kiro_repo_packages = [
+            p for p in all_packages if p.package_name == "kiro-repo"
+        ]
+        if kiro_repo_packages:
+            latest_kiro_repo = max(
+                kiro_repo_packages,
+                key=lambda p: parse_version(p.version),
+            )
+            s3_publisher.upload_convenience_copy(latest_kiro_repo)
+
         operation_logger.complete_operation("s3_upload", success=True)
 
-        # Clean up downloaded files (if any)
-        if local_files_map:
-            package_downloader.cleanup_all_downloads()
+        # Clean up downloaded files
+        package_router.cleanup_downloads()
 
-        # Send success notification (only for new version processing)
-        if current_release:
-            notification_service.send_success_notification(current_release)
+        # Send notifications for new packages
+        if new_packages:
+            for pkg in new_packages:
+                notification_service.send_success_notification(
+                    _convert_package_metadata_to_release_info(pkg)
+                )
 
         # Log successful completion
         system_logger.increment_metric("operations_completed", 1)
-        if current_release:
-            system_logger.set_metric(
-                "latest_version_processed", current_release.version
-            )
-        else:
-            system_logger.set_metric("rebuild_packages_count", len(all_packages))
+        system_logger.set_metric("total_packages", len(all_packages))
         system_logger.log_system_termination(success=True)
 
         if force_rebuild:
@@ -174,7 +240,7 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         else:
             return {
                 "statusCode": 200,
-                "body": f"Successfully processed version {current_release.version}",
+                "body": f"Successfully processed {len(new_packages)} new packages",
             }
 
     except Exception as e:
@@ -183,7 +249,6 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             notification_service = NotificationService(validate_permissions=False)
             notification_service.send_failure_notification(e, "Lambda execution")
         except Exception as notification_error:
-            # If notification fails, just log it - don't fail the entire function
             logger.error(f"Failed to send failure notification: {notification_error}")
 
         # Log error and system failure
