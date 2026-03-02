@@ -28,7 +28,7 @@ class InstructionsGenerator:
         Returns:
             Complete HTML document as a string
 
-        Validates: Requirements 9.1, 9.2, 9.3
+        Validates: Requirements 16.1, 16.2, 16.3, 16.4, 16.5, 16.6
         """
         self.logger.info(
             "Generating installation instructions HTML",
@@ -113,15 +113,22 @@ class InstructionsGenerator:
 
         <p>Welcome to the Kiro IDE Debian repository. This repository provides easy installation and updates for Kiro IDE on Debian and Ubuntu systems.</p>
 
+        <h2>What is kiro-repo?</h2>
+        <p>The <code>kiro-repo</code> package is a repository configuration package that automatically sets up your system to use the Kiro IDE APT repository. It configures the necessary sources and ensures your system can receive updates for both Kiro IDE and the repository configuration itself.</p>
+
         <h2>Quick Install <span class="recommended">(Recommended)</span></h2>
-        <p>Download and install the repository configuration package, then install Kiro IDE:</p>
-        <pre><code># Download and install repository configuration
+        <p>This is a two-step process: first install the repository configuration package, then install Kiro IDE.</p>
+        <pre><code># Step 1: Download and install repository configuration
 wget {repo_url}/kiro-repo.deb
 sudo dpkg -i kiro-repo.deb
 
-# Update package list and install Kiro IDE
+# Step 2: Update package list and install Kiro IDE
 sudo apt-get update
 sudo apt-get install kiro</code></pre>
+
+        <div class="info">
+            <strong>Automatic Updates:</strong> The <code>kiro-repo</code> package itself will be automatically updated by APT, ensuring your repository configuration stays current. You don't need to manually reinstall it.
+        </div>
 
         <h2>Manual Install</h2>
         <p>For advanced users who prefer to configure the repository manually:</p>

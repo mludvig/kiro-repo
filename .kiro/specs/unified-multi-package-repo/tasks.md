@@ -398,8 +398,8 @@ Key architectural changes:
     - Test dry-run mode
     - Test error handling and rollback scenarios
 
-- [ ] 17. Update instructions page
-  - [ ] 17.1 Update index.html generation
+- [x] 17. Update instructions page
+  - [x] 17.1 Update index.html generation
     - Update `repository_builder.py` or create separate template
     - Explain kiro-repo.deb configures the repository
     - Provide command to download and install kiro-repo.deb from root
@@ -408,7 +408,7 @@ Key architectural changes:
     - Include manual configuration instructions as alternative
     - _Requirements: 16.1, 16.2, 16.3, 16.4, 16.5, 16.6_
   
-  - [ ]* 17.2 Write unit tests for instructions page generation
+  - [x] 17.2 Write unit tests for instructions page generation
     - Test HTML generation with correct content
     - Test all required sections present
 

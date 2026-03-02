@@ -9,7 +9,7 @@ from src.instructions_generator import InstructionsGenerator
 
 
 # **Feature: debian-repo-manager, Property 11: Installation Instructions Completeness**
-# **Validates: Requirements 9.1, 9.2, 9.3**
+# **Validates: Requirements 16.1, 16.2, 16.3, 16.4, 16.5, 16.6**
 @given(
     protocol=st.sampled_from(["http", "https"]),
     domain=st.text(
@@ -20,9 +20,7 @@ from src.instructions_generator import InstructionsGenerator
     tld=st.sampled_from(["com", "org", "net", "dev", "io"]),
     path=st.lists(
         st.text(
-            alphabet=st.characters(
-                whitelist_categories=("Ll", "Nd"), min_codepoint=97
-            ),
+            alphabet=st.characters(whitelist_categories=("Ll", "Nd"), min_codepoint=97),
             min_size=1,
             max_size=15,
         ).map(lambda s: s.replace(" ", "")),
@@ -57,15 +55,15 @@ def test_installation_instructions_completeness_property(
 
     # Property 1: HTML should contain the repository URL in quick install section
     # Looking for: wget {repo_url}/kiro-repo.deb
-    assert (
-        f"wget {normalized_repo_url}/kiro-repo.deb" in html
-    ), f"Quick install section missing repository URL: {normalized_repo_url}/kiro-repo.deb"
+    assert f"wget {normalized_repo_url}/kiro-repo.deb" in html, (
+        f"Quick install section missing repository URL: {normalized_repo_url}/kiro-repo.deb"
+    )
 
     # Property 2: HTML should contain the repository URL in manual install section
     # Looking for: deb [trusted=yes] {repo_url}/ /
-    assert (
-        f"deb [trusted=yes] {normalized_repo_url}/ /" in html
-    ), f"Manual install section missing repository URL: {normalized_repo_url}/ /"
+    assert f"deb [trusted=yes] {normalized_repo_url}/ /" in html, (
+        f"Manual install section missing repository URL: {normalized_repo_url}/ /"
+    )
 
     # Property 3: HTML should contain essential apt commands
     essential_commands = [
@@ -75,15 +73,11 @@ def test_installation_instructions_completeness_property(
     ]
 
     for command in essential_commands:
-        assert (
-            command in html
-        ), f"Essential apt command missing from HTML: {command}"
+        assert command in html, f"Essential apt command missing from HTML: {command}"
 
     # Property 4: HTML should be valid HTML with required structure
     # Check for DOCTYPE
-    assert (
-        "<!DOCTYPE html>" in html
-    ), "HTML missing DOCTYPE declaration"
+    assert "<!DOCTYPE html>" in html, "HTML missing DOCTYPE declaration"
 
     # Check for html tags
     assert "<html" in html and "</html>" in html, "HTML missing html tags"
@@ -112,9 +106,9 @@ def test_installation_instructions_completeness_property(
     assert "<code>" in html and "</code>" in html, "HTML missing code tags"
 
     # Property 7: HTML should have proper character encoding
-    assert (
-        'charset="UTF-8"' in html or "charset=UTF-8" in html
-    ), "HTML missing UTF-8 charset declaration"
+    assert 'charset="UTF-8"' in html or "charset=UTF-8" in html, (
+        "HTML missing UTF-8 charset declaration"
+    )
 
     # Property 8: HTML should be well-formed (basic check)
     # Count opening and closing tags for major elements
@@ -135,7 +129,9 @@ def test_installation_instructions_completeness_property(
 
     # Property 10: HTML should mention both installation methods clearly
     # The word "Recommended" should appear for quick install
-    assert "Recommended" in html or "recommended" in html, "HTML missing recommendation for quick install method"
+    assert "Recommended" in html or "recommended" in html, (
+        "HTML missing recommendation for quick install method"
+    )
 
     # Property 11: HTML should contain update instructions
     assert "Updating" in html or "update" in html, "HTML missing update instructions"
@@ -155,3 +151,37 @@ def test_installation_instructions_completeness_property(
     # Property 13: HTML length should be reasonable (not empty, not excessively large)
     assert len(html) > 500, "Generated HTML is suspiciously short"
     assert len(html) < 50000, "Generated HTML is suspiciously long"
+
+    # Property 14: HTML should explain what kiro-repo is (Requirement 16.1)
+    assert "What is kiro-repo?" in html, "HTML missing explanation of kiro-repo purpose"
+    assert "repository configuration package" in html, (
+        "HTML missing description of kiro-repo as configuration package"
+    )
+    assert "automatically sets up" in html, (
+        "HTML missing explanation that kiro-repo automatically sets up APT sources"
+    )
+
+    # Property 15: HTML should provide download command for kiro-repo.deb (Requirement 16.2)
+    assert f"wget {normalized_repo_url}/kiro-repo.deb" in html, (
+        "HTML missing wget command for kiro-repo.deb"
+    )
+
+    # Property 16: HTML should explain two-step process (Requirement 16.3)
+    assert "two-step process" in html, (
+        "HTML missing explanation of two-step installation process"
+    )
+    assert "Step 1:" in html and "Step 2:" in html, (
+        "HTML missing step labels for installation process"
+    )
+
+    # Property 17: HTML should explain automatic updates for kiro-repo (Requirement 16.4)
+    assert "Automatic Updates" in html or "automatically updated" in html, (
+        "HTML missing automatic updates explanation"
+    )
+    assert "kiro-repo" in html and "automatically updated by APT" in html, (
+        "HTML missing explanation that kiro-repo is auto-updated"
+    )
+
+    # Property 18: HTML should include manual alternative (Requirement 16.5)
+    assert "Manual Install" in html, "HTML missing manual installation section"
+    assert "sources.list" in html, "HTML missing manual sources.list configuration"
