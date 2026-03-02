@@ -292,20 +292,20 @@ Key architectural changes:
 - [x] 14. Checkpoint - Verify core Lambda functionality
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 15. Create build script for kiro-repo package
-  - [ ] 15.1 Create build script directory structure
+- [x] 15. Create build script for kiro-repo package
+  - [x] 15.1 Create build script directory structure
     - Create `scripts/` directory
     - Create `templates/kiro-repo/` directory for Debian package templates
     - _Requirements: 5.1_
   
-  - [ ] 15.2 Create Debian package templates
+  - [x] 15.2 Create Debian package templates
     - Create `templates/kiro-repo/DEBIAN/control` template with version placeholder
     - Create `templates/kiro-repo/DEBIAN/postinst` script to update APT sources
     - Create `templates/kiro-repo/DEBIAN/prerm` script to clean up on removal
     - Create `templates/kiro-repo/etc/apt/sources.list.d/kiro.list` template with repository URL
     - _Requirements: 5.1, 13.4, 13.5, 13.6_
   
-  - [ ] 15.3 Implement build-kiro-repo.sh script
+  - [x] 15.3 Implement build-kiro-repo.sh script
     - Accept version and environment parameters
     - Read Terraform state for S3 bucket, DynamoDB table, Lambda function names
     - Create Debian package directory structure
@@ -319,7 +319,7 @@ Key architectural changes:
     - Log each step with success/failure messages
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 8.1, 8.2, 8.3, 13.1, 13.2, 13.3, 13.7, 13.8, 13.9, 13.10_
   
-  - [ ] 15.4 Add Terraform state reading logic
+  - [x] 15.4 Add Terraform state reading logic
     - Parse terraform.tfstate or use terraform output command
     - Extract S3 bucket name, DynamoDB table name, Lambda function name
     - Handle missing state file with clear error message
@@ -327,7 +327,7 @@ Key architectural changes:
     - Support environment parameter to read correct state file
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 8.6_
   
-  - [ ]* 15.5 Write unit tests for build script components
+  - [x] 15.5 Write unit tests for build script components
     - Test Terraform state parsing
     - Test version increment logic
     - Test checksum computation

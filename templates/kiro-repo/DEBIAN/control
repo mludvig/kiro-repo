@@ -1,0 +1,15 @@
+Package: kiro-repo
+Version: {{VERSION}}
+Section: misc
+Priority: optional
+Architecture: all
+Maintainer: Kiro Team <support@kiro.dev>
+Description: Kiro IDE Repository Configuration
+ This package configures your system to use the Kiro IDE Debian repository.
+ It adds the appropriate APT sources configuration to enable installation
+ and updates of Kiro IDE packages.
+ .
+ After installation, you can install Kiro IDE with:
+   sudo apt-get update
+   sudo apt-get install kiro
+Homepage: https://kiro.dev

@@ -1,327 +1,390 @@
 #!/bin/bash
 # Build and upload kiro-repo debian package
-# This package configures the system to use the Kiro repository
+# Reads infrastructure resource names from Terraform state.
+# Usage: ./scripts/build-kiro-repo.sh --version <version> --env <environment>
 
 set -e
 
-# Color output
+# ---------------------------------------------------------------------------
+# Colour helpers
+# ---------------------------------------------------------------------------
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Print usage information
+log_info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
+log_warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
+log_error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
+log_step()    { echo -e "${GREEN}✓${NC} $*"; }
+log_fail()    { echo -e "${RED}✗${NC} $*" >&2; }
+
+# ---------------------------------------------------------------------------
+# Usage
+# ---------------------------------------------------------------------------
 usage() {
-    echo "Usage: $0 --repo-url <url> --version <version> --bucket <bucket> --env <environment>"
-    echo ""
-    echo "Required arguments:"
-    echo "  --repo-url    Repository URL (e.g., https://bucket.s3.amazonaws.com)"
-    echo "  --version     Package version (e.g., 1.0, 1.1)"
-    echo "  --bucket      S3 bucket name"
-    echo "  --env         Environment (dev or prod)"
-    echo ""
-    echo "Example:"
-    echo "  $0 --repo-url https://kiro-repo-prod.s3.amazonaws.com --version 1.0 --bucket kiro-repo-prod --env prod"
+    cat <<EOF
+Usage: $0 --version <version> --env <environment>
+
+Required arguments:
+  --version   Package version (e.g., 1.0, 1.1, 2.0)
+  --env       Environment: dev, staging, or prod
+
+Optional arguments:
+  --dry-run   Build and validate the package without uploading or storing metadata
+  -h|--help   Show this help message
+
+Examples:
+  $0 --version 1.2 --env dev
+  $0 --version 2.0 --env prod --dry-run
+EOF
     exit 1
 }
 
-# Parse command line arguments
-REPO_URL=""
+# ---------------------------------------------------------------------------
+# Argument parsing
+# ---------------------------------------------------------------------------
 VERSION=""
-BUCKET=""
 ENV=""
+DRY_RUN=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --repo-url)
-            REPO_URL="$2"
-            shift 2
-            ;;
-        --version)
-            VERSION="$2"
-            shift 2
-            ;;
-        --bucket)
-            BUCKET="$2"
-            shift 2
-            ;;
-        --env)
-            ENV="$2"
-            shift 2
-            ;;
-        -h|--help)
-            usage
-            ;;
+        --version)  VERSION="$2"; shift 2 ;;
+        --env)      ENV="$2";     shift 2 ;;
+        --dry-run)  DRY_RUN=true; shift   ;;
+        -h|--help)  usage ;;
         *)
-            echo -e "${RED}Error: Unknown argument: $1${NC}"
+            log_error "Unknown argument: $1"
             usage
             ;;
     esac
 done
 
-# Validate required arguments
-if [ -z "$REPO_URL" ] || [ -z "$VERSION" ] || [ -z "$BUCKET" ] || [ -z "$ENV" ]; then
-    echo -e "${RED}Error: All arguments are required${NC}"
+if [[ -z "$VERSION" || -z "$ENV" ]]; then
+    log_error "Both --version and --env are required."
     usage
 fi
 
-# Validate environment
-if [ "$ENV" != "dev" ] && [ "$ENV" != "prod" ]; then
-    echo -e "${RED}Error: Environment must be 'dev' or 'prod'${NC}"
+if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
+    log_error "Environment must be one of: dev, staging, prod"
     exit 1
 fi
 
-# Validate version format (should be numeric like 1.0, 1.1, etc.)
-if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${YELLOW}Warning: Version format should be X.Y (e.g., 1.0)${NC}"
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+([.][0-9]+)?$ ]]; then
+    log_warn "Version '$VERSION' does not match expected format X.Y or X.Y.Z"
 fi
 
-echo -e "${GREEN}Building kiro-repo package${NC}"
-echo "  Repository URL: $REPO_URL"
-echo "  Version: $VERSION"
-echo "  S3 Bucket: $BUCKET"
-echo "  Environment: $ENV"
-echo ""
+# ---------------------------------------------------------------------------
+# Resolve script and project root directories
+# ---------------------------------------------------------------------------
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TERRAFORM_DIR="$PROJECT_ROOT/terraform"
+TEMPLATES_DIR="$PROJECT_ROOT/templates/kiro-repo"
 
-# Create temporary build directory
-BUILD_DIR=$(mktemp -d)
-PACKAGE_NAME="kiro-repo_${VERSION}_all"
-PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
+# ---------------------------------------------------------------------------
+# Step 1: Read Terraform state
+# ---------------------------------------------------------------------------
+read_terraform_state() {
+    local state_file="$TERRAFORM_DIR/${ENV}.tfstate"
 
-echo "Build directory: $BUILD_DIR"
+    log_info "Reading Terraform state from: $state_file"
 
-# Create package directory structure
-mkdir -p "$PACKAGE_DIR/DEBIAN"
-mkdir -p "$PACKAGE_DIR/etc/apt/sources.list.d"
-
-# Generate control file
-cat > "$PACKAGE_DIR/DEBIAN/control" << EOF
-Package: kiro-repo
-Version: $VERSION
-Section: misc
-Priority: optional
-Architecture: all
-Maintainer: Kiro Team <support@kiro.dev>
-Description: Kiro IDE Repository Configuration
- This package configures your system to use the Kiro IDE Debian repository.
- It adds the appropriate APT sources configuration to enable installation
- and updates of Kiro IDE packages.
- .
- After installation, you can install Kiro IDE with:
-   sudo apt-get update
-   sudo apt-get install kiro
-Homepage: https://kiro.dev
-EOF
-
-echo -e "${GREEN}✓${NC} Generated control file"
-
-# Generate kiro.list file
-cat > "$PACKAGE_DIR/etc/apt/sources.list.d/kiro.list" << EOF
-# Kiro IDE Debian Repository
-# This repository is not GPG-signed. The [trusted=yes] option bypasses signature verification.
-# The [arch=amd64] option restricts this repository to amd64 architecture only.
-deb [trusted=yes arch=amd64] $REPO_URL/ stable main
-EOF
-
-echo -e "${GREEN}✓${NC} Generated kiro.list file"
-
-# Generate postinst script
-cat > "$PACKAGE_DIR/DEBIAN/postinst" << 'EOF'
-#!/bin/bash
-set -e
-
-# Post-installation script for kiro-repo
-
-case "$1" in
-    configure)
-        echo "Kiro IDE repository has been configured."
-        echo "Run 'sudo apt-get update' to refresh package lists."
-        echo "Then install Kiro IDE with 'sudo apt-get install kiro'"
-        ;;
-    
-    abort-upgrade|abort-remove|abort-deconfigure)
-        ;;
-    
-    *)
-        echo "postinst called with unknown argument \`$1'" >&2
+    if [[ ! -f "$state_file" ]]; then
+        log_fail "Terraform state file not found: $state_file"
+        log_error "Please ensure Terraform has been applied for the '$ENV' environment."
         exit 1
-        ;;
-esac
+    fi
 
-exit 0
+    # Extract outputs using terraform CLI (preferred) or jq fallback
+    if command -v terraform &>/dev/null; then
+        S3_BUCKET=$(terraform -chdir="$TERRAFORM_DIR" output \
+            -state="${ENV}.tfstate" -raw s3_bucket_name 2>/dev/null) || true
+        DYNAMODB_TABLE=$(terraform -chdir="$TERRAFORM_DIR" output \
+            -state="${ENV}.tfstate" -raw dynamodb_table_name 2>/dev/null) || true
+        LAMBDA_FUNCTION=$(terraform -chdir="$TERRAFORM_DIR" output \
+            -state="${ENV}.tfstate" -raw lambda_function_name 2>/dev/null) || true
+        S3_WEBSITE=$(terraform -chdir="$TERRAFORM_DIR" output \
+            -state="${ENV}.tfstate" -raw s3_bucket_website_endpoint 2>/dev/null) || true
+    fi
+
+    # Fallback: parse state file directly with jq if terraform CLI failed
+    if [[ -z "$S3_BUCKET" ]] && command -v jq &>/dev/null; then
+        log_warn "terraform CLI output failed; falling back to jq state parsing"
+        S3_BUCKET=$(jq -r \
+            '.outputs.s3_bucket_name.value // empty' "$state_file" 2>/dev/null) || true
+        DYNAMODB_TABLE=$(jq -r \
+            '.outputs.dynamodb_table_name.value // empty' "$state_file" 2>/dev/null) || true
+        LAMBDA_FUNCTION=$(jq -r \
+            '.outputs.lambda_function_name.value // empty' "$state_file" 2>/dev/null) || true
+        S3_WEBSITE=$(jq -r \
+            '.outputs.s3_bucket_website_endpoint.value // empty' "$state_file" 2>/dev/null) || true
+    fi
+
+    # Validate required outputs
+    local missing=()
+    [[ -z "$S3_BUCKET" ]]       && missing+=("s3_bucket_name")
+    [[ -z "$DYNAMODB_TABLE" ]]  && missing+=("dynamodb_table_name")
+    [[ -z "$LAMBDA_FUNCTION" ]] && missing+=("lambda_function_name")
+
+    if [[ ${#missing[@]} -gt 0 ]]; then
+        log_fail "Missing required Terraform outputs: ${missing[*]}"
+        log_error "Ensure the Terraform outputs are defined and the state is up to date."
+        exit 1
+    fi
+
+    # Derive repo URL from website endpoint or bucket name
+    if [[ -n "$S3_WEBSITE" ]]; then
+        REPO_URL="http://$S3_WEBSITE"
+    else
+        REPO_URL="https://${S3_BUCKET}.s3.amazonaws.com"
+    fi
+
+    log_step "Terraform state loaded"
+    log_info "  S3 bucket:       $S3_BUCKET"
+    log_info "  DynamoDB table:  $DYNAMODB_TABLE"
+    log_info "  Lambda function: $LAMBDA_FUNCTION"
+    log_info "  Repository URL:  $REPO_URL"
+}
+
+# ---------------------------------------------------------------------------
+# Step 2: Build the Debian package
+# ---------------------------------------------------------------------------
+build_package() {
+    PACKAGE_NAME="kiro-repo_${VERSION}_all"
+    BUILD_DIR=$(mktemp -d)
+    PACKAGE_DIR="$BUILD_DIR/$PACKAGE_NAME"
+    DEB_FILE="$BUILD_DIR/${PACKAGE_NAME}.deb"
+
+    log_info "Building package in: $BUILD_DIR"
+
+    # Validate templates exist
+    if [[ ! -d "$TEMPLATES_DIR" ]]; then
+        log_fail "Templates directory not found: $TEMPLATES_DIR"
+        exit 1
+    fi
+
+    # Create package directory structure
+    mkdir -p "$PACKAGE_DIR/DEBIAN"
+    mkdir -p "$PACKAGE_DIR/etc/apt/sources.list.d"
+
+    # Generate control file from template (replace {{VERSION}} placeholder)
+    sed "s/{{VERSION}}/$VERSION/g" \
+        "$TEMPLATES_DIR/DEBIAN/control" > "$PACKAGE_DIR/DEBIAN/control"
+    log_step "Generated control file (version: $VERSION)"
+
+    # Copy and make executable: postinst
+    cp "$TEMPLATES_DIR/DEBIAN/postinst" "$PACKAGE_DIR/DEBIAN/postinst"
+    chmod 755 "$PACKAGE_DIR/DEBIAN/postinst"
+    log_step "Copied postinst script"
+
+    # Copy and make executable: prerm
+    cp "$TEMPLATES_DIR/DEBIAN/prerm" "$PACKAGE_DIR/DEBIAN/prerm"
+    chmod 755 "$PACKAGE_DIR/DEBIAN/prerm"
+    log_step "Copied prerm script"
+
+    # Generate sources.list from template (replace {{REPO_URL}} placeholder)
+    sed "s|{{REPO_URL}}|$REPO_URL|g" \
+        "$TEMPLATES_DIR/etc/apt/sources.list.d/kiro.list" \
+        > "$PACKAGE_DIR/etc/apt/sources.list.d/kiro.list"
+    log_step "Generated kiro.list (repo URL: $REPO_URL)"
+
+    # Build the .deb file
+    if ! command -v dpkg-deb &>/dev/null; then
+        log_fail "dpkg-deb not found. Install dpkg-dev: sudo apt-get install dpkg-dev"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
+
+    dpkg-deb --build "$PACKAGE_DIR" "$DEB_FILE"
+
+    if [[ ! -f "$DEB_FILE" ]]; then
+        log_fail "dpkg-deb did not produce: $DEB_FILE"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
+
+    log_step "Built Debian package: ${PACKAGE_NAME}.deb"
+
+    # Compute checksums
+    FILE_SIZE=$(stat -c%s "$DEB_FILE")
+    MD5_HASH=$(md5sum    "$DEB_FILE" | awk '{print $1}')
+    SHA1_HASH=$(sha1sum  "$DEB_FILE" | awk '{print $1}')
+    SHA256_HASH=$(sha256sum "$DEB_FILE" | awk '{print $1}')
+
+    log_info "Package checksums:"
+    log_info "  Size:   $FILE_SIZE bytes"
+    log_info "  MD5:    $MD5_HASH"
+    log_info "  SHA1:   $SHA1_HASH"
+    log_info "  SHA256: $SHA256_HASH"
+}
+
+# ---------------------------------------------------------------------------
+# Step 3: Upload .deb to S3 staging area
+# ---------------------------------------------------------------------------
+upload_to_staging() {
+    local staging_key="staging/kiro-repo/${PACKAGE_NAME}.deb"
+
+    log_info "Uploading to S3 staging: s3://$S3_BUCKET/$staging_key"
+
+    if ! aws s3 cp "$DEB_FILE" "s3://$S3_BUCKET/$staging_key" \
+            --content-type "application/vnd.debian.binary-package"; then
+        log_fail "Failed to upload .deb to S3 staging area"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
+
+    log_step "Uploaded to S3 staging: $staging_key"
+}
+
+# ---------------------------------------------------------------------------
+# Step 4: Store complete PackageMetadata in DynamoDB
+# ---------------------------------------------------------------------------
+store_dynamodb_metadata() {
+    local package_id="kiro-repo#${VERSION}"
+    local pub_date
+    pub_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    local processed_timestamp="$pub_date"
+    local staging_url="s3://$S3_BUCKET/staging/kiro-repo/${PACKAGE_NAME}.deb"
+
+    log_info "Storing metadata in DynamoDB table: $DYNAMODB_TABLE"
+    log_info "  package_id: $package_id"
+
+    local item
+    item=$(cat <<EOF
+{
+    "package_id":           {"S": "$package_id"},
+    "package_name":         {"S": "kiro-repo"},
+    "version":              {"S": "$VERSION"},
+    "architecture":         {"S": "all"},
+    "pub_date":             {"S": "$pub_date"},
+    "deb_url":              {"S": "$staging_url"},
+    "actual_filename":      {"S": "${PACKAGE_NAME}.deb"},
+    "file_size":            {"N": "$FILE_SIZE"},
+    "md5_hash":             {"S": "$MD5_HASH"},
+    "sha1_hash":            {"S": "$SHA1_HASH"},
+    "sha256_hash":          {"S": "$SHA256_HASH"},
+    "section":              {"S": "misc"},
+    "priority":             {"S": "optional"},
+    "maintainer":           {"S": "Kiro Team <support@kiro.dev>"},
+    "homepage":             {"S": "https://kiro.dev"},
+    "description":          {"S": "Kiro IDE Repository Configuration"},
+    "package_type":         {"S": "build_script"},
+    "processed_timestamp":  {"S": "$processed_timestamp"}
+}
 EOF
+)
 
-chmod 755 "$PACKAGE_DIR/DEBIAN/postinst"
+    if ! aws dynamodb put-item \
+            --table-name "$DYNAMODB_TABLE" \
+            --item "$item"; then
+        log_fail "Failed to store metadata in DynamoDB"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
 
-echo -e "${GREEN}✓${NC} Generated postinst script"
+    log_step "Stored metadata in DynamoDB (package_id: $package_id)"
+}
 
-# Build the debian package
-DEB_FILE="$BUILD_DIR/${PACKAGE_NAME}.deb"
-dpkg-deb --build "$PACKAGE_DIR" "$DEB_FILE"
+# ---------------------------------------------------------------------------
+# Step 5: Invoke Lambda with force_rebuild=true
+# ---------------------------------------------------------------------------
+invoke_lambda() {
+    local response_file
+    response_file=$(mktemp)
 
-if [ ! -f "$DEB_FILE" ]; then
-    echo -e "${RED}Error: Failed to build debian package${NC}"
+    log_info "Invoking Lambda function: $LAMBDA_FUNCTION"
+
+    if ! aws lambda invoke \
+            --function-name "$LAMBDA_FUNCTION" \
+            --payload '{"force_rebuild": true}' \
+            --cli-binary-format raw-in-base64-out \
+            "$response_file" 2>/dev/null; then
+        log_fail "Failed to invoke Lambda function"
+        rm -f "$response_file"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
+
+    local status_code
+    status_code=$(python3 -c \
+        "import json,sys; d=json.load(open('$response_file')); print(d.get('statusCode',0))" \
+        2>/dev/null || echo "0")
+
+    rm -f "$response_file"
+
+    if [[ "$status_code" != "200" ]]; then
+        log_fail "Lambda returned non-200 status: $status_code"
+        rm -rf "$BUILD_DIR"
+        exit 1
+    fi
+
+    log_step "Lambda force_rebuild completed (status: $status_code)"
+}
+
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
+main() {
+    echo ""
+    log_info "========================================="
+    log_info " Building kiro-repo package"
+    log_info "  Version:     $VERSION"
+    log_info "  Environment: $ENV"
+    [[ "$DRY_RUN" == "true" ]] && log_info "  Mode:        DRY RUN (no upload/store)"
+    log_info "========================================="
+    echo ""
+
+    # Step 1: Read Terraform state (skip in dry-run if no state file)
+    if [[ "$DRY_RUN" == "true" ]]; then
+        # In dry-run, use placeholder values if state is unavailable
+        if [[ -f "$TERRAFORM_DIR/${ENV}.tfstate" ]]; then
+            read_terraform_state
+        else
+            log_warn "Dry-run: Terraform state not found; using placeholder values"
+            S3_BUCKET="<s3-bucket>"
+            DYNAMODB_TABLE="<dynamodb-table>"
+            LAMBDA_FUNCTION="<lambda-function>"
+            REPO_URL="https://<s3-bucket>.s3.amazonaws.com"
+        fi
+    else
+        read_terraform_state
+    fi
+
+    # Step 2: Build the package
+    build_package
+
+    if [[ "$DRY_RUN" == "true" ]]; then
+        echo ""
+        log_info "Dry-run complete. Package built at: $DEB_FILE"
+        log_info "No files were uploaded or stored."
+        rm -rf "$BUILD_DIR"
+        exit 0
+    fi
+
+    # Step 3: Upload to S3 staging
+    upload_to_staging
+
+    # Step 4: Store metadata in DynamoDB
+    store_dynamodb_metadata
+
+    # Step 5: Invoke Lambda
+    invoke_lambda
+
+    # Cleanup
     rm -rf "$BUILD_DIR"
-    exit 1
-fi
 
-echo -e "${GREEN}✓${NC} Built debian package: ${PACKAGE_NAME}.deb"
+    echo ""
+    log_info "========================================="
+    log_step "Successfully built and deployed kiro-repo $VERSION"
+    log_info "========================================="
+    echo ""
+    log_info "Users can install with:"
+    log_info "  wget $REPO_URL/kiro-repo.deb"
+    log_info "  sudo dpkg -i kiro-repo.deb"
+    log_info "  sudo apt-get update && sudo apt-get install kiro"
+    echo ""
+}
 
-# Get package file size and calculate checksums
-FILE_SIZE=$(stat -c%s "$DEB_FILE")
-MD5_HASH=$(md5sum "$DEB_FILE" | awk '{print $1}')
-SHA1_HASH=$(sha1sum "$DEB_FILE" | awk '{print $1}')
-SHA256_HASH=$(sha256sum "$DEB_FILE" | awk '{print $1}')
-
-echo ""
-echo "Package information:"
-echo "  Size: $FILE_SIZE bytes"
-echo "  MD5: $MD5_HASH"
-echo "  SHA1: $SHA1_HASH"
-echo "  SHA256: $SHA256_HASH"
-echo ""
-
-# Upload to S3
-echo "Uploading to S3..."
-aws s3 cp "$DEB_FILE" "s3://$BUCKET/${PACKAGE_NAME}.deb" \
-    --acl public-read \
-    --content-type "application/vnd.debian.binary-package"
-
-if [ $? -ne 0 ]; then
-    echo -e "${RED}Error: Failed to upload to S3${NC}"
-    rm -rf "$BUILD_DIR"
-    exit 1
-fi
-
-echo -e "${GREEN}✓${NC} Uploaded to S3: s3://$BUCKET/${PACKAGE_NAME}.deb"
-
-# Also upload with a stable name (kiro-repo.deb) for easy access
-aws s3 cp "$DEB_FILE" "s3://$BUCKET/kiro-repo.deb" \
-    --acl public-read \
-    --content-type "application/vnd.debian.binary-package"
-
-echo -e "${GREEN}✓${NC} Uploaded stable link: s3://$BUCKET/kiro-repo.deb"
-
-# Update repository metadata
-echo ""
-echo "Updating repository metadata..."
-
-# Download current Packages file if it exists
-TEMP_PACKAGES="$BUILD_DIR/Packages"
-aws s3 cp "s3://$BUCKET/dists/stable/main/binary-amd64/Packages" "$TEMP_PACKAGES" 2>/dev/null || touch "$TEMP_PACKAGES"
-
-# Create new package entry
-PACKAGE_ENTRY="Package: kiro-repo
-Version: $VERSION
-Architecture: all
-Maintainer: Kiro Team <support@kiro.dev>
-Section: misc
-Priority: optional
-Homepage: https://kiro.dev
-Description: Kiro IDE Repository Configuration
- This package configures your system to use the Kiro IDE Debian repository.
- It adds the appropriate APT sources configuration to enable installation
- and updates of Kiro IDE packages.
-Filename: pool/main/k/kiro-repo/${PACKAGE_NAME}.deb
-Size: $FILE_SIZE
-MD5sum: $MD5_HASH
-SHA1: $SHA1_HASH
-SHA256: $SHA256_HASH"
-
-# Check if kiro-repo entry already exists in Packages file
-if grep -q "^Package: kiro-repo$" "$TEMP_PACKAGES"; then
-    # Remove old kiro-repo entry (everything from "Package: kiro-repo" to the next empty line or EOF)
-    awk '
-        BEGIN { in_kiro_repo = 0 }
-        /^Package: kiro-repo$/ { in_kiro_repo = 1; next }
-        /^$/ { 
-            if (in_kiro_repo) { 
-                in_kiro_repo = 0
-                next
-            }
-        }
-        !in_kiro_repo { print }
-    ' "$TEMP_PACKAGES" > "$TEMP_PACKAGES.tmp"
-    mv "$TEMP_PACKAGES.tmp" "$TEMP_PACKAGES"
-    echo -e "${YELLOW}Removed old kiro-repo entry from Packages file${NC}"
-fi
-
-# Add new entry to Packages file
-if [ -s "$TEMP_PACKAGES" ]; then
-    # File has content, add double newline before new entry
-    echo "" >> "$TEMP_PACKAGES"
-    echo "" >> "$TEMP_PACKAGES"
-fi
-echo "$PACKAGE_ENTRY" >> "$TEMP_PACKAGES"
-
-echo -e "${GREEN}✓${NC} Updated Packages file"
-
-# Upload updated Packages file
-aws s3 cp "$TEMP_PACKAGES" "s3://$BUCKET/dists/stable/main/binary-amd64/Packages" \
-    --acl public-read \
-    --content-type "text/plain"
-
-echo -e "${GREEN}✓${NC} Uploaded Packages file to S3"
-
-# Generate and upload Release file
-PACKAGES_SIZE=$(stat -c%s "$TEMP_PACKAGES")
-PACKAGES_MD5=$(md5sum "$TEMP_PACKAGES" | awk '{print $1}')
-PACKAGES_SHA1=$(sha1sum "$TEMP_PACKAGES" | awk '{print $1}')
-PACKAGES_SHA256=$(sha256sum "$TEMP_PACKAGES" | awk '{print $1}')
-
-RELEASE_FILE="$BUILD_DIR/Release"
-cat > "$RELEASE_FILE" << EOF
-Origin: Kiro
-Label: Kiro IDE Repository
-Suite: stable
-Codename: stable
-Version: 1.0
-Architectures: amd64
-Components: main
-Description: Kiro IDE Debian Repository - Official packages for Kiro IDE
- This repository contains official Debian packages for Kiro IDE.
-Date: $(date -u "+%a, %d %b %Y %H:%M:%S UTC")
-Valid-Until: $(date -u -d "+1 year" "+%a, %d %b %Y %H:%M:%S UTC")
-MD5Sum:
- $PACKAGES_MD5 $PACKAGES_SIZE main/binary-amd64/Packages
-SHA1:
- $PACKAGES_SHA1 $PACKAGES_SIZE main/binary-amd64/Packages
-SHA256:
- $PACKAGES_SHA256 $PACKAGES_SIZE main/binary-amd64/Packages
-EOF
-
-echo -e "${GREEN}✓${NC} Generated Release file"
-
-# Upload Release file
-aws s3 cp "$RELEASE_FILE" "s3://$BUCKET/dists/stable/Release" \
-    --acl public-read \
-    --content-type "text/plain"
-
-echo -e "${GREEN}✓${NC} Uploaded Release file to S3"
-
-# Upload the actual .deb file to pool directory
-aws s3 cp "$DEB_FILE" "s3://$BUCKET/pool/main/k/kiro-repo/${PACKAGE_NAME}.deb" \
-    --acl public-read \
-    --content-type "application/vnd.debian.binary-package"
-
-echo -e "${GREEN}✓${NC} Uploaded package to pool directory"
-
-# Clean up
-rm -rf "$BUILD_DIR"
-
-echo ""
-echo -e "${GREEN}========================================${NC}"
-echo -e "${GREEN}✓ Successfully built and uploaded kiro-repo package${NC}"
-echo -e "${GREEN}========================================${NC}"
-echo ""
-echo "Package details:"
-echo "  Name: ${PACKAGE_NAME}.deb"
-echo "  Version: $VERSION"
-echo "  Repository URL: $REPO_URL"
-echo ""
-echo "Users can install with:"
-echo "  wget $REPO_URL/kiro-repo.deb"
-echo "  sudo dpkg -i kiro-repo.deb"
-echo "  sudo apt-get update"
-echo "  sudo apt-get install kiro"
-echo ""
+main

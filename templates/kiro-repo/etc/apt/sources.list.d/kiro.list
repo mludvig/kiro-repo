@@ -1,0 +1,4 @@
+# Kiro IDE Debian Repository
+# This repository is not GPG-signed. The [trusted=yes] option bypasses signature verification.
+# The [arch=amd64] option restricts this repository to amd64 architecture only.
+deb [trusted=yes arch=amd64] {{REPO_URL}}/ stable main

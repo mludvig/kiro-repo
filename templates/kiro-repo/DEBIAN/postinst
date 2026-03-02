@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Post-installation script for kiro-repo
+
+case "$1" in
+    configure)
+        echo "Kiro IDE repository has been configured."
+        echo "Run 'sudo apt-get update' to refresh package lists."
+        echo "Then install Kiro IDE with 'sudo apt-get install kiro'"
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0

@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+# Pre-removal script for kiro-repo
+
+case "$1" in
+    remove|purge)
+        echo "Removing Kiro IDE repository configuration..."
+        # The sources.list.d file will be removed by dpkg automatically
+        # since it is tracked as a conffile
+        ;;
+
+    upgrade|deconfigure|failed-upgrade)
+        ;;
+
+    *)
+        echo "prerm called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
