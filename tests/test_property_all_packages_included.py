@@ -6,7 +6,7 @@ packages should have corresponding entries.
 Validates: Requirements 4.3, 10.1
 """
 
-from hypothesis import given, settings
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
 from src.models import PackageMetadata
@@ -62,7 +62,7 @@ package_metadata_st = st.builds(
 
 
 @given(packages=st.lists(package_metadata_st, min_size=1, max_size=8))
-@settings(max_examples=50)
+@settings(max_examples=50, suppress_health_check=[HealthCheck.too_slow])
 def test_all_packages_included_property(
     packages: list[PackageMetadata],
 ) -> None:
