@@ -333,15 +333,15 @@ Key architectural changes:
     - Test checksum computation
     - Test error handling for each step
 
-- [ ] 16. Create DynamoDB schema migration script
-  - [ ] 16.1 Implement DynamoDBSchemaMigration class
+- [x] 16. Create DynamoDB schema migration script
+  - [x] 16.1 Implement DynamoDBSchemaMigration class
     - Create `scripts/migrate_dynamodb_schema.py`
     - Implement `__init__()` with environment and dry_run parameters
     - Initialize DynamoDB client and table reference
     - Initialize ConfigManager for metadata defaults
     - _Requirements: 15.1, 15.2_
   
-  - [ ] 16.2 Implement backup phase
+  - [x] 16.2 Implement backup phase
     - Implement `backup_existing_records()` method
     - Scan all existing records from DynamoDB
     - Export to JSONL file with timestamp
@@ -349,7 +349,7 @@ Key architectural changes:
     - Log count of records backed up
     - _Requirements: 15.2_
   
-  - [ ] 16.3 Implement transformation phase
+  - [x] 16.3 Implement transformation phase
     - Implement `transform_records()` method
     - For each old record, create package_id field (package_name#version)
     - Add package_name field (default "kiro" for old records)
@@ -360,7 +360,7 @@ Key architectural changes:
     - Validate each transformed record has required fields
     - _Requirements: 15.3, 15.4, 15.5, 15.12_
   
-  - [ ] 16.4 Implement upload phase
+  - [x] 16.4 Implement upload phase
     - Implement `upload_new_records()` method
     - Write each transformed record to DynamoDB with new schema
     - Use batch write operations for efficiency
@@ -369,7 +369,7 @@ Key architectural changes:
     - Skip if dry_run=True
     - _Requirements: 15.6_
   
-  - [ ] 16.5 Implement cleanup phase
+  - [x] 16.5 Implement cleanup phase
     - Implement `delete_old_records()` method
     - Delete old schema records after successful upload
     - Use batch delete operations
@@ -378,13 +378,13 @@ Key architectural changes:
     - Skip if dry_run=True
     - _Requirements: 15.7_
   
-  - [ ] 16.6 Implement dry-run display
+  - [x] 16.6 Implement dry-run display
     - Implement `display_sample_transformations()` method
     - Show old and new record formats for first 3 records
     - Format output for easy verification
     - _Requirements: 15.8, 15.9_
   
-  - [ ] 16.7 Implement command-line interface
+  - [x] 16.7 Implement command-line interface
     - Add argparse with --env, --dry-run, --backup-file arguments
     - Validate arguments (backup-file required for actual migration)
     - Implement main() function with error handling
@@ -392,7 +392,7 @@ Key architectural changes:
     - Preserve backup file on failure
     - _Requirements: 15.10, 15.11_
   
-  - [ ]* 16.8 Write unit tests for migration script
+  - [x] 16.8 Write unit tests for migration script
     - Test record transformation logic
     - Test backup and restore operations
     - Test dry-run mode
