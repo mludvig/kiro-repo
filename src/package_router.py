@@ -54,9 +54,22 @@ class PackageRouter:
             ValueError: If the source type is unknown or not implemented.
         """
         source_type = config.source.type
+        logger.debug(
+            "Routing package '%s' to handler for source type '%s'",
+            config.package_name,
+            source_type,
+        )
         if source_type == "external_download":
+            logger.info(
+                "Package '%s' routed to KiroPackageHandler (external_download)",
+                config.package_name,
+            )
             return KiroPackageHandler(config)
         if source_type == "build_script":
+            logger.info(
+                "Package '%s' routed to KiroRepoPackageHandler (build_script)",
+                config.package_name,
+            )
             return KiroRepoPackageHandler(config)
         if source_type == "github_release":
             raise ValueError(
@@ -78,7 +91,11 @@ class PackageRouter:
             List of newly processed package metadata.
         """
         if force_rebuild:
-            logger.info("Force rebuild requested, skipping version checks")
+            logger.info(
+                "Force rebuild requested - skipping version checks for %d package(s): %s",
+                len(self.handlers),
+                ", ".join(self.handlers.keys()),
+            )
             return []
 
         results: list[PackageMetadata] = []

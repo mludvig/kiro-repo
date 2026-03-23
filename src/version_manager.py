@@ -1,12 +1,16 @@
 """DynamoDB-based version manager for tracking processed package versions."""
 
 import logging
+import time
 from datetime import datetime
 from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Attr
 from botocore.exceptions import ClientError
+
+_MAX_RETRIES = 3
+_RETRY_BASE_DELAY = 1  # seconds, doubled each attempt
 
 from src.aws_permissions import AWSPermissionValidator
 from src.config import ENV_AWS_REGION, ENV_DYNAMODB_TABLE, get_env_var
@@ -48,6 +52,45 @@ class VersionManager:
 
         logger.info(f"Initialized VersionManager with table: {self.table_name}")
 
+    def _retry_dynamodb(self, operation_name: str, fn: Any) -> Any:
+        """Execute a DynamoDB operation with exponential backoff retry.
+
+        Args:
+            operation_name: Human-readable name for logging.
+            fn: Zero-argument callable that performs the DynamoDB operation.
+
+        Returns:
+            The return value of fn().
+
+        Raises:
+            ClientError: If all retry attempts fail.
+        """
+        for attempt in range(_MAX_RETRIES):
+            try:
+                return fn()
+            except ClientError as e:
+                error_code = e.response.get("Error", {}).get("Code", "Unknown")
+                if attempt < _MAX_RETRIES - 1:
+                    delay = _RETRY_BASE_DELAY * (2**attempt)
+                    logger.warning(
+                        "DynamoDB %s failed (attempt %d/%d, code=%s), "
+                        "retrying in %.1fs",
+                        operation_name,
+                        attempt + 1,
+                        _MAX_RETRIES,
+                        error_code,
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        "DynamoDB %s failed after %d attempts (code=%s)",
+                        operation_name,
+                        _MAX_RETRIES,
+                        error_code,
+                    )
+                    raise
+
     def get_all_packages(self) -> list[PackageMetadata]:
         """Get all stored package metadata from DynamoDB.
 
@@ -61,18 +104,20 @@ class VersionManager:
 
         try:
             packages = []
-            response = self.table.scan()
+            response = self._retry_dynamodb("scan", lambda: self.table.scan())
 
             # Process first page
             packages.extend(self._items_to_packages(response.get("Items", [])))
 
             # Handle pagination
             while "LastEvaluatedKey" in response:
+                last_key = response["LastEvaluatedKey"]
                 logger.debug(
                     f"Scanning next page, found {len(packages)} packages so far"
                 )
-                response = self.table.scan(
-                    ExclusiveStartKey=response["LastEvaluatedKey"]
+                response = self._retry_dynamodb(
+                    "scan (paginated)",
+                    lambda: self.table.scan(ExclusiveStartKey=last_key),
                 )
                 packages.extend(self._items_to_packages(response.get("Items", [])))
 
@@ -102,19 +147,26 @@ class VersionManager:
         try:
             packages = []
             filter_expr = Attr("package_name").eq(package_name)
-            response = self.table.scan(FilterExpression=filter_expr)
+            response = self._retry_dynamodb(
+                f"scan (package={package_name})",
+                lambda: self.table.scan(FilterExpression=filter_expr),
+            )
 
             # Process first page
             packages.extend(self._items_to_packages(response.get("Items", [])))
 
             # Handle pagination
             while "LastEvaluatedKey" in response:
+                last_key = response["LastEvaluatedKey"]
                 logger.debug(
                     f"Scanning next page, found {len(packages)} packages so far"
                 )
-                response = self.table.scan(
-                    FilterExpression=filter_expr,
-                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                response = self._retry_dynamodb(
+                    f"scan paginated (package={package_name})",
+                    lambda: self.table.scan(
+                        FilterExpression=filter_expr,
+                        ExclusiveStartKey=last_key,
+                    ),
                 )
                 packages.extend(self._items_to_packages(response.get("Items", [])))
 
@@ -204,7 +256,10 @@ class VersionManager:
             item["depends"] = metadata.depends
 
         try:
-            self.table.put_item(Item=item)
+            self._retry_dynamodb(
+                f"put_item ({metadata.package_name}#{metadata.version})",
+                lambda: self.table.put_item(Item=item),
+            )
             logger.info(
                 f"Successfully stored {metadata.package_name} version {metadata.version}"
             )
@@ -232,8 +287,12 @@ class VersionManager:
         logger.debug(f"Checking if package {package_id} has been processed")
 
         try:
-            response = self.table.get_item(
-                Key={"package_id": package_id}, ProjectionExpression="package_id"
+            response = self._retry_dynamodb(
+                f"get_item ({package_id})",
+                lambda: self.table.get_item(
+                    Key={"package_id": package_id},
+                    ProjectionExpression="package_id",
+                ),
             )
 
             exists = "Item" in response
@@ -251,11 +310,41 @@ class VersionManager:
             items: List of DynamoDB items.
 
         Returns:
-            List of PackageMetadata objects.
+            List of PackageMetadata objects. Items with missing required fields
+            are skipped and logged as warnings.
         """
+        # Required fields that must be present for a valid package entry
+        _REQUIRED_FIELDS = {"version", "pub_date", "deb_url"}
+
         packages = []
 
         for item in items:
+            item_id = item.get("package_id", item.get("version", "unknown"))
+
+            # Check for missing required fields before attempting construction
+            missing = _REQUIRED_FIELDS - item.keys()
+            if missing:
+                logger.warning(
+                    "Skipping package '%s': missing required field(s): %s",
+                    item_id,
+                    ", ".join(sorted(missing)),
+                )
+                continue
+
+            # Warn about empty/falsy file metadata that may affect repository integrity
+            incomplete_fields = [
+                f
+                for f in ("actual_filename", "sha256_hash", "md5_hash", "sha1_hash")
+                if not item.get(f)
+            ]
+            if incomplete_fields:
+                logger.warning(
+                    "Package '%s' has incomplete file metadata (field(s) empty: %s) "
+                    "— repository entry may be incomplete",
+                    item_id,
+                    ", ".join(incomplete_fields),
+                )
+
             try:
                 # Parse processed timestamp if present
                 processed_timestamp = None
@@ -293,7 +382,9 @@ class VersionManager:
 
             except (KeyError, ValueError) as e:
                 logger.warning(
-                    f"Skipping invalid item {item.get('package_id', item.get('version', 'unknown'))}: {e}"
+                    "Skipping package '%s' due to conversion error: %s",
+                    item_id,
+                    e,
                 )
                 continue
 
@@ -317,19 +408,26 @@ class VersionManager:
 
         try:
             versions = []
-            response = self.table.scan(ProjectionExpression="version")
+            response = self._retry_dynamodb(
+                "scan (versions)",
+                lambda: self.table.scan(ProjectionExpression="version"),
+            )
 
             # Add versions from first page
             versions.extend([item["version"] for item in response.get("Items", [])])
 
             # Handle pagination
             while "LastEvaluatedKey" in response:
+                last_key = response["LastEvaluatedKey"]
                 logger.debug(
                     f"Scanning next page, found {len(versions)} versions so far"
                 )
-                response = self.table.scan(
-                    ProjectionExpression="version",
-                    ExclusiveStartKey=response["LastEvaluatedKey"],
+                response = self._retry_dynamodb(
+                    "scan paginated (versions)",
+                    lambda: self.table.scan(
+                        ProjectionExpression="version",
+                        ExclusiveStartKey=last_key,
+                    ),
                 )
                 versions.extend([item["version"] for item in response.get("Items", [])])
 
@@ -417,18 +515,20 @@ class VersionManager:
 
         try:
             releases = []
-            response = self.table.scan()
+            response = self._retry_dynamodb("scan (releases)", lambda: self.table.scan())
 
             # Process first page
             releases.extend(self._items_to_releases(response.get("Items", [])))
 
             # Handle pagination
             while "LastEvaluatedKey" in response:
+                last_key = response["LastEvaluatedKey"]
                 logger.debug(
                     f"Scanning next page, found {len(releases)} releases so far"
                 )
-                response = self.table.scan(
-                    ExclusiveStartKey=response["LastEvaluatedKey"]
+                response = self._retry_dynamodb(
+                    "scan paginated (releases)",
+                    lambda: self.table.scan(ExclusiveStartKey=last_key),
                 )
                 releases.extend(self._items_to_releases(response.get("Items", [])))
 

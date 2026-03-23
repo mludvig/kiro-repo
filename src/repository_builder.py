@@ -112,12 +112,46 @@ class RepositoryBuilder:
             base_path=str(self.base_path),
         )
 
+    # Required fields for a package to be included in the repository
+    REQUIRED_METADATA_FIELDS: list[str] = [
+        "package_name",
+        "version",
+        "architecture",
+        "pub_date",
+        "deb_url",
+        "actual_filename",
+        "file_size",
+        "md5_hash",
+        "sha1_hash",
+        "sha256_hash",
+        "maintainer",
+        "description",
+    ]
+
+    def validate_package_metadata(self, package: PackageMetadata) -> list[str]:
+        """Check a package for missing required metadata fields.
+
+        Args:
+            package: PackageMetadata to validate
+
+        Returns:
+            List of field names that are missing or empty. Empty list means valid.
+        """
+        missing: list[str] = []
+        for field in self.REQUIRED_METADATA_FIELDS:
+            value = getattr(package, field, None)
+            if value is None or value == "" or value == 0:
+                missing.append(field)
+        return missing
+
     def generate_packages_file(
         self,
         packages: list[PackageMetadata],
         local_files_map: dict[str, LocalReleaseFiles] | None = None,
     ) -> str:
         """Generate Packages file content with metadata for all packages.
+
+        Packages with incomplete metadata are skipped with a warning log.
 
         Args:
             packages: List of PackageMetadata for all packages
@@ -131,8 +165,23 @@ class RepositoryBuilder:
         packages_entries = []
 
         for package in packages:
+            missing_fields = self.validate_package_metadata(package)
+            if missing_fields:
+                logger.warning(
+                    "Skipping package %s version %s due to incomplete metadata: "
+                    "missing fields: %s",
+                    package.package_name,
+                    package.version,
+                    ", ".join(missing_fields),
+                )
+                continue
+
             entry = self.generate_package_entry(package, local_files_map)
             packages_entries.append(entry)
+
+        if not packages_entries:
+            logger.warning("No valid packages to include in Packages file")
+            return "\n"
 
         packages_content = "\n\n".join(packages_entries) + "\n"
         logger.info("Generated Packages file content")

@@ -204,16 +204,29 @@ class S3Publisher:
 
             except ClientError as e:
                 error_code = e.response.get("Error", {}).get("Code", "Unknown")
-                logger.warning(
-                    f"Copy attempt {attempt + 1} failed for {convenience_key}: {error_code}"
-                )
-
-                if attempt == max_retries - 1:
-                    logger.error(f"All copy attempts failed for {convenience_key}")
+                if attempt < max_retries - 1:
+                    delay = 2**attempt
+                    logger.warning(
+                        "S3 copy_object failed (attempt %d/%d, code=%s, "
+                        "src=%s, dst=%s), retrying in %.1fs",
+                        attempt + 1,
+                        max_retries,
+                        error_code,
+                        pool_key,
+                        convenience_key,
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        "S3 copy_object failed after %d attempts (code=%s, "
+                        "src=%s, dst=%s)",
+                        max_retries,
+                        error_code,
+                        pool_key,
+                        convenience_key,
+                    )
                     raise
-
-                # Exponential backoff
-                time.sleep(2**attempt)
 
     def _upload_content(
         self, key: str, content: str, content_type: str = "text/plain"

@@ -183,6 +183,15 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
         operation_logger.start_operation("repository_build")
         all_packages = version_manager.get_all_packages()
 
+        if force_rebuild:
+            logger.info(
+                "Force rebuild: retrieved %d package(s) from DynamoDB: %s",
+                len(all_packages),
+                ", ".join(
+                    f"{p.package_name}@{p.version}" for p in all_packages
+                ),
+            )
+
         # Create local files map for newly downloaded kiro packages
         local_files_map: dict[str, LocalReleaseFiles] = {}
         for pkg in new_packages:
@@ -213,7 +222,17 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
                 kiro_repo_packages,
                 key=lambda p: parse_version(p.version),
             )
+            logger.info(
+                "Updating convenience copy of kiro-repo to version %s "
+                "(from %d available version(s))",
+                latest_kiro_repo.version,
+                len(kiro_repo_packages),
+            )
             s3_publisher.upload_convenience_copy(latest_kiro_repo)
+            logger.info(
+                "Convenience copy updated: kiro-repo.deb -> %s",
+                latest_kiro_repo.actual_filename,
+            )
 
         operation_logger.complete_operation("s3_upload", success=True)
 

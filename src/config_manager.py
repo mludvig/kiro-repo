@@ -1,9 +1,12 @@
 """Configuration management for multi-package Debian repository."""
 
+import logging
 from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -114,10 +117,17 @@ class ConfigManager:
         Returns:
             List of PackageConfig objects, one per YAML file found
         """
+        logger.info("Loading package configurations from %s", self.config_dir)
         configs = []
         for yaml_file in self.config_dir.glob("*.yaml"):
             config = PackageConfig.from_yaml(yaml_file)
             configs.append(config)
+            logger.debug(
+                "Loaded config for package '%s' (source type: %s)",
+                config.package_name,
+                config.source.type,
+            )
+        logger.info("Loaded %d package configuration(s)", len(configs))
         return configs
 
     def get_config(self, package_name: str) -> PackageConfig:
