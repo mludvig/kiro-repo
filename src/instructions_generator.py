@@ -107,11 +107,7 @@ class InstructionsGenerator:
     <div class="container">
         <h1>Kiro IDE Debian Repository</h1>
 
-        <div class="info">
-            <strong>Note:</strong> This page is available at <code>{repo_url}/index.html</code>
-        </div>
-
-        <p>Welcome to the Kiro IDE Debian repository. This repository provides easy installation and updates for Kiro IDE on Debian and Ubuntu systems.</p>
+        <p>Easy installation and updates for <a href="https://kiro.dev">Kiro IDE</a> on Debian and Ubuntu systems.</p>
 
         <h2>What is kiro-repo?</h2>
         <p>The <code>kiro-repo</code> package is a repository configuration package that automatically sets up your system to use the Kiro IDE APT repository. It configures the necessary sources and ensures your system can receive updates for both Kiro IDE and the repository configuration itself.</p>
@@ -119,7 +115,7 @@ class InstructionsGenerator:
         <h2>Quick Install <span class="recommended">(Recommended)</span></h2>
         <p>This is a two-step process: first install the repository configuration, then install Kiro IDE.</p>
         <p><strong>Step 1:</strong> Download and install repository configuration</p>
-        <pre><code>wget {repo_url}/kiro-repo.deb
+        <pre><code>curl -LO {repo_url}/kiro-repo.deb
 sudo dpkg -i kiro-repo.deb</code></pre>
         <p><strong>Step 2:</strong> Update package list and install Kiro IDE</p>
         <pre><code>sudo apt-get update && sudo apt-get install kiro</code></pre>
