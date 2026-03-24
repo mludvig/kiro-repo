@@ -112,6 +112,10 @@ class InstructionsGenerator:
         <h2>What is kiro-repo?</h2>
         <p>The <code>kiro-repo</code> package is a repository configuration package that automatically sets up your system to use the Kiro IDE APT repository. It configures the necessary sources and ensures your system can receive updates for both Kiro IDE and the repository configuration itself.</p>
 
+        <div class="note">
+            <p><strong>Found an issue?</strong> Please report it on the <a href="https://github.com/mludvig/kiro-repo/issues">kiro-repo issue tracker</a>.</p>
+        </div>
+
         <h2>Quick Install <span class="recommended">(Recommended)</span></h2>
         <p>This is a two-step process: first install the repository configuration, then install Kiro IDE.</p>
         <p><strong>Step 1:</strong> Download and install repository configuration</p>
@@ -132,10 +136,6 @@ echo "deb [trusted=yes] {repo_url}/ /" | sudo tee /etc/apt/sources.list.d/kiro.l
 # Update package list and install Kiro IDE
 sudo apt-get update
 sudo apt-get install kiro</code></pre>
-
-        <div class="note">
-            <strong>Note:</strong> The <code>[trusted=yes]</code> option is used because the repository uses self-signed certificates. This is safe for the official Kiro repository.
-        </div>
 
         <h2>Updating Kiro IDE</h2>
         <p>Once the repository is configured, you can update Kiro IDE using standard apt commands:</p>
