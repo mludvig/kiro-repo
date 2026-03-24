@@ -126,19 +126,38 @@ resource "aws_s3_bucket" "cloudfront_logs" {
   })
 }
 
-resource "aws_s3_bucket_ownership_controls" "cloudfront_logs_ownership" {
+# Standard logging v2 uses a bucket policy instead of ACLs.
+# The delivery.logs.amazonaws.com service principal writes logs directly.
+resource "aws_s3_bucket_policy" "cloudfront_logs_policy" {
   bucket = aws_s3_bucket.cloudfront_logs.id
-
-  rule {
-    object_ownership = "BucketOwnerPreferred"
-  }
+  policy = data.aws_iam_policy_document.cloudfront_logs.json
 }
 
-resource "aws_s3_bucket_acl" "cloudfront_logs_acl" {
-  bucket = aws_s3_bucket.cloudfront_logs.id
-  acl    = "private"
+data "aws_iam_policy_document" "cloudfront_logs" {
+  statement {
+    sid    = "AWSLogsDeliveryWrite"
+    effect = "Allow"
 
-  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs_ownership]
+    principals {
+      type        = "Service"
+      identifiers = ["delivery.logs.amazonaws.com"]
+    }
+
+    actions   = ["s3:PutObject"]
+    resources = ["${aws_s3_bucket.cloudfront_logs.arn}/*"]
+
+    condition {
+      test     = "StringEquals"
+      variable = "aws:SourceAccount"
+      values   = [data.aws_caller_identity.current.account_id]
+    }
+
+    condition {
+      test     = "ArnLike"
+      variable = "aws:SourceArn"
+      values   = [aws_cloudwatch_log_delivery_source.cloudfront_logs.arn]
+    }
+  }
 }
 
 resource "aws_s3_bucket_public_access_block" "cloudfront_logs_pab" {

@@ -1,8 +1,8 @@
 # DynamoDB table for version tracking
 resource "aws_dynamodb_table" "version_store" {
-  name           = "${var.project_name}-versions-${var.env}"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "package_id"
+  name         = "${var.project_name}-versions-${var.env}"
+  billing_mode = "PAY_PER_REQUEST"
+  hash_key     = "package_id"
 
   attribute {
     name = "package_id"

@@ -94,12 +94,12 @@ locals {
 resource "aws_lambda_function" "debian_repo_manager" {
   filename         = local.lambda_zip_path
   function_name    = "${var.project_name}-${var.env}"
-  role            = aws_iam_role.lambda_role.arn
-  handler         = "src.main.lambda_handler"
+  role             = aws_iam_role.lambda_role.arn
+  handler          = "src.main.lambda_handler"
   source_code_hash = filebase64sha256(local.lambda_zip_path)
-  runtime         = "python3.12"
-  timeout         = var.lambda_timeout
-  memory_size     = var.lambda_memory_size
+  runtime          = "python3.12"
+  timeout          = var.lambda_timeout
+  memory_size      = var.lambda_memory_size
 
   ephemeral_storage {
     size = var.lambda_ephemeral_storage

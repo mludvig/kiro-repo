@@ -60,12 +60,6 @@ resource "aws_cloudfront_distribution" "repository" {
     max_ttl     = 604800
   }
 
-  logging_config {
-    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
-    include_cookies = false
-    prefix          = "cloudfront/${var.env}/"
-  }
-
   restrictions {
     geo_restriction {
       restriction_type = "none"
@@ -97,4 +91,33 @@ output "cloudfront_distribution_id" {
 output "repo_url" {
   description = "Public URL of the repository"
   value       = "https://${var.repo_url_domain}"
+}
+
+# CloudFront Standard Logging v2
+# Uses CloudWatch vended logs delivery pipeline — no ACLs required.
+# All three resources must be in us-east-1.
+
+resource "aws_cloudwatch_log_delivery_source" "cloudfront_logs" {
+  name         = "${var.project_name}-cf-logs-source-${var.env}"
+  log_type     = "ACCESS_LOGS"
+  resource_arn = aws_cloudfront_distribution.repository.arn
+}
+
+resource "aws_cloudwatch_log_delivery_destination" "cloudfront_logs" {
+  name          = "${var.project_name}-cf-logs-destination-${var.env}"
+  output_format = "w3c"
+
+  delivery_destination_configuration {
+    destination_resource_arn = aws_s3_bucket.cloudfront_logs.arn
+  }
+}
+
+resource "aws_cloudwatch_log_delivery" "cloudfront_logs" {
+  delivery_source_name     = aws_cloudwatch_log_delivery_source.cloudfront_logs.name
+  delivery_destination_arn = aws_cloudwatch_log_delivery_destination.cloudfront_logs.arn
+
+  s3_delivery_configuration {
+    suffix_path                 = "/{yyyy}/{MM}/{dd}"
+    enable_hive_compatible_path = false
+  }
 }

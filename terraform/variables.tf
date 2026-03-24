@@ -100,7 +100,7 @@ variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
   default = {
-    Project     = "kiro-debian-repo-manager"
-    ManagedBy   = "terraform"
+    Project   = "kiro-debian-repo-manager"
+    ManagedBy = "terraform"
   }
 }
