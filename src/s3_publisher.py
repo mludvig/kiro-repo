@@ -10,7 +10,7 @@ import requests
 from botocore.exceptions import BotoCoreError, ClientError
 
 from src.aws_permissions import AWSPermissionValidator
-from src.config import ENV_AWS_REGION, ENV_S3_BUCKET, get_env_var
+from src.config import ENV_AWS_REGION, ENV_REPO_WEBSITE_URL, ENV_S3_BUCKET, get_env_var
 from src.instructions_generator import InstructionsGenerator
 from src.models import PackageMetadata, RepositoryStructure
 
@@ -67,7 +67,10 @@ class S3Publisher:
         try:
             # Generate and upload index.html with installation instructions
             logger.info("Generating installation instructions HTML")
-            repo_url = f"https://{self.bucket_name}.s3.amazonaws.com"
+            repo_url = get_env_var(
+                ENV_REPO_WEBSITE_URL,
+                default=f"https://{self.bucket_name}.s3.amazonaws.com",
+            )
 
             # Determine environment from bucket name (dev/prod)
             environment = "dev" if "dev" in self.bucket_name.lower() else "prod"

@@ -113,6 +113,7 @@ resource "aws_lambda_function" "debian_repo_manager" {
       SUCCESS_SNS_TOPIC   = aws_sns_topic.success_notifications.arn
       FAILURE_SNS_TOPIC   = aws_sns_topic.failure_notifications.arn
       ENVIRONMENT         = var.env
+      REPO_WEBSITE_URL    = "http://${aws_s3_bucket_website_configuration.repository_website.website_endpoint}"
     }
   }
 
