@@ -204,8 +204,8 @@ def test_convenience_copy_is_regular_object(bucket_name, version):
         "Content-Type should be set for Debian packages"
     )
 
-    # Verify ACL is set to public-read
-    assert copy_op["ACL"] == "public-read", "ACL should be public-read"
+    # Verify no ACL is set (public access managed by bucket policy)
+    assert "ACL" not in copy_op, "ACL should not be set (managed by bucket policy)"
 
     # Verify metadata directive is REPLACE (creates new object metadata)
     assert copy_op["MetadataDirective"] == "REPLACE", (

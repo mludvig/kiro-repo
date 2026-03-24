@@ -75,11 +75,10 @@ class PackageRouter:
             )
             return KiroRepoPackageHandler(config)
         if source_type == "github_release":
-            logger.info(
-                "Package '%s' skipped: source type 'github_release' not yet implemented",
-                config.package_name,
+            raise ValueError(
+                f"Source type 'github_release' for package '{config.package_name}' "
+                "is not yet implemented"
             )
-            return None
         raise ValueError(f"Unknown source type: '{source_type}'")
 
     def process_all_packages(

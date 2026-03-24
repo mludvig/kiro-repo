@@ -89,6 +89,7 @@ class ReleaseInfo:
     md5_hash: str | None = None
     sha1_hash: str | None = None
     sha256_hash: str | None = None
+    depends: str | None = None
 
     @classmethod
     def from_metadata(cls, metadata: dict[str, Any]) -> "ReleaseInfo":

@@ -64,21 +64,17 @@ class TestKiroPackageHandler:
     def test_init_sets_metadata_url_from_config(
         self, mock_metadata_cls, mock_downloader_cls, package_config
     ):
-        mock_client = mock_metadata_cls.return_value
         KiroPackageHandler(package_config)
-        assert (
-            mock_client.METADATA_URL
-            == "https://custom.endpoint/metadata.json"
+        mock_metadata_cls.assert_called_once_with(
+            metadata_url="https://custom.endpoint/metadata.json"
         )
 
-    def test_init_keeps_default_url_when_no_endpoint(
+    def test_init_raises_when_no_endpoint(
         self, mock_metadata_cls, mock_downloader_cls, package_config
     ):
         package_config.source.metadata_endpoint = None
-        mock_client = mock_metadata_cls.return_value
-        original_url = mock_client.METADATA_URL
-        KiroPackageHandler(package_config)
-        assert mock_client.METADATA_URL == original_url
+        with pytest.raises(ValueError, match="metadata_endpoint"):
+            KiroPackageHandler(package_config)
 
     def test_check_new_version_returns_version(
         self,

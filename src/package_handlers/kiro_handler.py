@@ -101,7 +101,7 @@ class KiroPackageHandler(PackageHandler):
             maintainer=self.config.maintainer,
             homepage=self.config.homepage,
             description=self.config.description,
-            depends=self.config.depends,
+            depends=release_info.depends or self.config.depends,
         )
 
     def get_package_file_path(self, metadata: PackageMetadata) -> str:

@@ -117,14 +117,12 @@ class InstructionsGenerator:
         <p>The <code>kiro-repo</code> package is a repository configuration package that automatically sets up your system to use the Kiro IDE APT repository. It configures the necessary sources and ensures your system can receive updates for both Kiro IDE and the repository configuration itself.</p>
 
         <h2>Quick Install <span class="recommended">(Recommended)</span></h2>
-        <p>This is a two-step process: first install the repository configuration package, then install Kiro IDE.</p>
-        <pre><code># Step 1: Download and install repository configuration
-wget {repo_url}/kiro-repo.deb
-sudo dpkg -i kiro-repo.deb
-
-# Step 2: Update package list and install Kiro IDE
-sudo apt-get update
-sudo apt-get install kiro</code></pre>
+        <p>This is a two-step process: first install the repository configuration, then install Kiro IDE.</p>
+        <p><strong>Step 1:</strong> Download and install repository configuration</p>
+        <pre><code>wget {repo_url}/kiro-repo.deb
+sudo dpkg -i kiro-repo.deb</code></pre>
+        <p><strong>Step 2:</strong> Update package list and install Kiro IDE</p>
+        <pre><code>sudo apt-get update && sudo apt-get install kiro</code></pre>
 
         <div class="info">
             <strong>Automatic Updates:</strong> The <code>kiro-repo</code> package itself will be automatically updated by APT, ensuring your repository configuration stays current. You don't need to manually reinstall it.

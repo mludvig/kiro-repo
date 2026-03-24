@@ -1,7 +1,9 @@
 """Package downloader with integrity verification and retry logic."""
 
 import hashlib
+import io
 import logging
+import tarfile
 from pathlib import Path
 
 import requests
@@ -11,6 +13,42 @@ from urllib3.util.retry import Retry
 from src.models import LocalReleaseFiles, ReleaseInfo
 
 logger = logging.getLogger(__name__)
+
+
+def _extract_depends_from_deb(deb_path: str) -> str | None:
+    """Extract the Depends field from a .deb file's control data.
+
+    Parses the ar archive format and reads the control tarball without
+    any external tools — pure Python stdlib only.
+
+    Args:
+        deb_path: Path to the .deb file.
+
+    Returns:
+        Depends string if found, None otherwise.
+    """
+    with open(deb_path, "rb") as f:
+        if f.read(8) != b"!<arch>\n":
+            raise ValueError(f"Not a valid ar archive: {deb_path}")
+        while True:
+            header = f.read(60)
+            if len(header) < 60:
+                break
+            name = header[0:16].rstrip().decode("ascii", errors="replace")
+            size = int(header[48:58].strip())
+            data = f.read(size)
+            if size % 2:  # ar pads to even byte boundary
+                f.read(1)
+            if name.startswith("control.tar"):
+                tf = tarfile.open(fileobj=io.BytesIO(data), mode="r:*")
+                for member in tf.getmembers():
+                    if member.name in ("./control", "control"):
+                        content = tf.extractfile(member).read().decode()  # type: ignore[union-attr]
+                        for line in content.splitlines():
+                            if line.startswith("Depends:"):
+                                return line[len("Depends:"):].strip()
+                return None
+    return None
 
 
 class PackageDownloader:
@@ -259,6 +297,14 @@ class PackageDownloader:
         release_info.md5_hash = self._calculate_md5(str(deb_path))
         release_info.sha1_hash = self._calculate_sha1(str(deb_path))
         release_info.sha256_hash = self._calculate_sha256(str(deb_path))
+
+        # Extract depends from .deb control file
+        try:
+            release_info.depends = _extract_depends_from_deb(str(deb_path))
+            if release_info.depends:
+                logger.info(f"Extracted Depends for {release_info.version}")
+        except Exception as e:
+            logger.warning(f"Could not extract Depends from {deb_path.name}: {e}")
 
         logger.info(
             f"File metadata populated: {release_info.actual_filename}, "

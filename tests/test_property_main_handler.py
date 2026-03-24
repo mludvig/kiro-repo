@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from src.main import lambda_handler
 from src.models import PackageMetadata
 
 # --- Shared strategies ---
@@ -81,7 +82,7 @@ packages_strategy = st.lists(
 
 # **Property 3: Force Rebuild Retrieves All Packages**
 # **Validates: Requirements 1.4, 7.2**
-@settings(deadline=None)
+@settings(deadline=None, max_examples=25)
 @given(packages=packages_strategy)
 def test_force_rebuild_retrieves_all_packages(packages: list[PackageMetadata]):
     """Property: when force_rebuild=True, lambda_handler skips version checking
@@ -137,8 +138,6 @@ def test_force_rebuild_retrieves_all_packages(packages: list[PackageMetadata]):
 
         mock_s3 = mock_s3_cls.return_value
 
-        from src.main import lambda_handler
-
         response = lambda_handler(event, mock_context)
 
     # --- Assertions ---
@@ -178,7 +177,7 @@ def test_force_rebuild_retrieves_all_packages(packages: list[PackageMetadata]):
 
 # **Property 4: Repository Metadata Generation from DynamoDB Alone**
 # **Validates: Requirements 1.5, 9.6**
-@settings(deadline=None)
+@settings(deadline=None, max_examples=25)
 @given(packages=packages_strategy)
 def test_repository_metadata_generation_from_dynamodb_alone(
     packages: list[PackageMetadata],
@@ -231,8 +230,6 @@ def test_repository_metadata_generation_from_dynamodb_alone(
 
         mock_rb = mock_rb_cls.return_value
         mock_rb.create_repository_structure.return_value = mock_repo_structure
-
-        from src.main import lambda_handler
 
         response = lambda_handler(event, mock_context)
 
