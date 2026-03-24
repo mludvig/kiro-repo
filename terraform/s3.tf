@@ -116,7 +116,69 @@ resource "aws_s3_bucket_lifecycle_configuration" "repository_lifecycle" {
   }
 }
 
+# S3 bucket for CloudFront access logs
+resource "aws_s3_bucket" "cloudfront_logs" {
+  bucket = "${var.repo_bucket_name}-cf-logs"
+
+  tags = merge(var.tags, {
+    Name        = "${var.repo_bucket_name}-cf-logs"
+    Environment = var.env
+  })
+}
+
+resource "aws_s3_bucket_ownership_controls" "cloudfront_logs_ownership" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+
+  rule {
+    object_ownership = "BucketOwnerPreferred"
+  }
+}
+
+resource "aws_s3_bucket_acl" "cloudfront_logs_acl" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+  acl    = "private"
+
+  depends_on = [aws_s3_bucket_ownership_controls.cloudfront_logs_ownership]
+}
+
+resource "aws_s3_bucket_public_access_block" "cloudfront_logs_pab" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "cloudfront_logs_encryption" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_lifecycle_configuration" "cloudfront_logs_lifecycle" {
+  bucket = aws_s3_bucket.cloudfront_logs.id
+
+  rule {
+    id     = "expire_old_logs"
+    status = "Enabled"
+
+    expiration {
+      days = var.cloudfront_logs_retention_days
+    }
+  }
+}
+
 # S3 bucket outputs
+output "cloudfront_logs_bucket_name" {
+  description = "Name of the CloudFront logs S3 bucket"
+  value       = aws_s3_bucket.cloudfront_logs.bucket
+}
+
 output "s3_bucket_name" {
   description = "Name of the S3 bucket"
   value       = aws_s3_bucket.repository.bucket

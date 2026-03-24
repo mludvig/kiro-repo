@@ -60,6 +60,12 @@ resource "aws_cloudfront_distribution" "repository" {
     max_ttl     = 604800
   }
 
+  logging_config {
+    bucket          = aws_s3_bucket.cloudfront_logs.bucket_domain_name
+    include_cookies = false
+    prefix          = "cloudfront/${var.env}/"
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"

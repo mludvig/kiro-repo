@@ -6,7 +6,7 @@
 set -e
 
 # Configuration
-PROJECT_NAME="kiro-debian-repo-manager"
+PROJECT_NAME="kiro-repo"
 BUILD_DIR="build"
 PACKAGE_DIR="$BUILD_DIR/package"
 

@@ -90,6 +90,12 @@ variable "acm_certificate_arn" {
   type        = string
 }
 
+variable "cloudfront_logs_retention_days" {
+  description = "Number of days to retain CloudFront access logs in S3"
+  type        = number
+  default     = 400
+}
+
 variable "tags" {
   description = "Common tags to apply to all resources"
   type        = map(string)
