@@ -121,6 +121,8 @@ read_terraform_state() {
             -state="${ENV}.tfstate" -raw lambda_function_name 2>/dev/null) || true
         S3_WEBSITE=$(terraform -chdir="$TERRAFORM_DIR" output \
             -state="${ENV}.tfstate" -raw s3_bucket_website_endpoint 2>/dev/null) || true
+        CF_REPO_URL=$(terraform -chdir="$TERRAFORM_DIR" output \
+            -state="${ENV}.tfstate" -raw repo_url 2>/dev/null) || true
     fi
 
     # Fallback: parse state file directly with jq if terraform CLI failed
@@ -134,6 +136,8 @@ read_terraform_state() {
             '.outputs.lambda_function_name.value // empty' "$state_file" 2>/dev/null) || true
         S3_WEBSITE=$(jq -r \
             '.outputs.s3_bucket_website_endpoint.value // empty' "$state_file" 2>/dev/null) || true
+        CF_REPO_URL=$(jq -r \
+            '.outputs.repo_url.value // empty' "$state_file" 2>/dev/null) || true
     fi
 
     # Validate required outputs
@@ -148,8 +152,10 @@ read_terraform_state() {
         exit 1
     fi
 
-    # Derive repo URL from website endpoint or bucket name
-    if [[ -n "$S3_WEBSITE" ]]; then
+    # Derive repo URL: prefer CloudFront, fall back to S3 website, then bucket URL
+    if [[ -n "$CF_REPO_URL" ]]; then
+        REPO_URL="$CF_REPO_URL"
+    elif [[ -n "$S3_WEBSITE" ]]; then
         REPO_URL="http://$S3_WEBSITE"
     else
         REPO_URL="https://${S3_BUCKET}.s3.amazonaws.com"

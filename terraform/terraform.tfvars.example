@@ -24,6 +24,12 @@ enable_cloudwatch_alarms = true
 # Lambda source code path
 lambda_source_path = "../src"
 
+# Repository URL (CloudFront custom domain)
+repo_url_domain = "kiro-repo-dev.aws.nz"  # dev: kiro-repo-dev.aws.nz, prod: kiro-repo.aws.nz
+
+# ACM certificate ARN for *.aws.nz (must be in us-east-1 for CloudFront)
+acm_certificate_arn = "arn:aws:acm:us-east-1:ACCOUNT_ID:certificate/CERTIFICATE_ID"
+
 # Tags
 tags = {
   Project     = "kiro-debian-repo-manager"

@@ -87,7 +87,7 @@ resource "aws_iam_role_policy" "lambda_policy" {
 # Lambda deployment package (created by deploy.sh script)
 # The deployment script creates a package with all dependencies included
 locals {
-  lambda_zip_path = "../build/${var.project_name}-${var.env}.zip"
+  lambda_zip_path = var.lambda_zip_path != "" ? var.lambda_zip_path : "../build/${var.project_name}-${var.env}.zip"
 }
 
 # Lambda function
@@ -113,7 +113,7 @@ resource "aws_lambda_function" "debian_repo_manager" {
       SUCCESS_SNS_TOPIC   = aws_sns_topic.success_notifications.arn
       FAILURE_SNS_TOPIC   = aws_sns_topic.failure_notifications.arn
       ENVIRONMENT         = var.env
-      REPO_WEBSITE_URL    = "http://${aws_s3_bucket_website_configuration.repository_website.website_endpoint}"
+      REPO_WEBSITE_URL    = "https://${var.repo_url_domain}"
     }
   }
 

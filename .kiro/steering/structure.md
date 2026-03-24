@@ -48,10 +48,13 @@
 - `dynamodb.tf`: Version tracking table
 - `cloudwatch.tf`: Logging and monitoring
 - `sns.tf`: Notification setup
+- `cloudfront.tf`: CloudFront distribution for the repository
+- `route53.tf`: Route53 DNS records for the CloudFront distribution
 
 ### Configuration Files
 - `terraform.tfvars.example`: Template for environment variables
-- `config/*.tfvars`: Environment-specific configurations
+- `config/<env>.tfvars`: Environment-specific configurations (e.g. `config/dev.tfvars`, `config/prod.tfvars`)
+- Environment tfvars live in `config/`, **not** in `terraform/`
 
 ## Coding Conventions
 

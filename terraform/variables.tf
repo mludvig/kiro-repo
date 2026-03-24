@@ -68,10 +68,26 @@ variable "enable_cloudwatch_alarms" {
   default     = true
 }
 
+variable "lambda_zip_path" {
+  description = "Path to the Lambda deployment zip package"
+  type        = string
+  default     = ""
+}
+
 variable "lambda_source_path" {
   description = "Path to the Lambda function source code"
   type        = string
   default     = "../src"
+}
+
+variable "repo_url_domain" {
+  description = "Custom domain for the repository CloudFront distribution (e.g. kiro-repo.aws.nz)"
+  type        = string
+}
+
+variable "acm_certificate_arn" {
+  description = "ARN of the ACM certificate for the custom domain (must be in us-east-1)"
+  type        = string
 }
 
 variable "tags" {

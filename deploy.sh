@@ -136,10 +136,10 @@ fi
 export TF_CLI_ARGS="-state=${ENVIRONMENT}.tfstate"
 
 # Check if tfvars file exists
-TFVARS_FILE="${ENVIRONMENT}.tfvars"
+TFVARS_FILE="../config/${ENVIRONMENT}.tfvars"
 if [ ! -f "$TFVARS_FILE" ]; then
-    print_warning "No terraform.tfvars file found. Using defaults and environment variables."
-    print_warning "Consider creating $TFVARS_FILE from terraform.tfvars.example"
+    print_warning "No tfvars file found at $TFVARS_FILE. Using defaults and environment variables."
+    print_warning "Consider creating config/${ENVIRONMENT}.tfvars from terraform/terraform.tfvars.example"
 else
     TF_CLI_ARGS="${TF_CLI_ARGS} -var-file=$TFVARS_FILE"
 fi
@@ -147,6 +147,7 @@ fi
 # Set Terraform variables
 export TF_VAR_env=$ENVIRONMENT
 export TF_VAR_lambda_source_path="../$PACKAGE_DIR"
+export TF_VAR_lambda_zip_path="../$PACKAGE_FILE"
 
 # Run Terraform
 case $TERRAFORM_ACTION in
