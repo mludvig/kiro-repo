@@ -38,10 +38,13 @@ class PackageRouter:
 
         for config in self.config_manager.load_all_configs():
             handler = self._create_handler(config)
+            if handler is None:
+                logger.info("Skipping package '%s' (no handler)", config.package_name)
+                continue
             self.handlers[config.package_name] = handler
             logger.info("Registered handler for package: %s", config.package_name)
 
-    def _create_handler(self, config: PackageConfig) -> PackageHandler:
+    def _create_handler(self, config: PackageConfig) -> PackageHandler | None:
         """Create the appropriate handler for a package config.
 
         Args:
@@ -72,9 +75,11 @@ class PackageRouter:
             )
             return KiroRepoPackageHandler(config)
         if source_type == "github_release":
-            raise ValueError(
-                f"Source type '{source_type}' is not yet implemented"
+            logger.info(
+                "Package '%s' skipped: source type 'github_release' not yet implemented",
+                config.package_name,
             )
+            return None
         raise ValueError(f"Unknown source type: '{source_type}'")
 
     def process_all_packages(

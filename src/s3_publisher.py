@@ -123,20 +123,26 @@ class S3Publisher:
 
             # Upload all deb files and associated files
             for local_files in repo_structure.deb_files:
+                pkg_name = local_files.package_name if local_files.package_name else "kiro"
+                first_letter = pkg_name[0].lower()
+                pool_prefix = f"pool/main/{first_letter}/{pkg_name}"
+
                 # Upload .deb file
-                deb_key = f"pool/main/k/kiro/{Path(local_files.deb_file_path).name}"
+                deb_key = f"{pool_prefix}/{Path(local_files.deb_file_path).name}"
                 self._upload_file(local_files.deb_file_path, deb_key)
                 uploaded_keys.append(deb_key)
 
-                # Upload certificate file
-                cert_key = f"pool/main/k/kiro/{Path(local_files.certificate_path).name}"
-                self._upload_file(local_files.certificate_path, cert_key)
-                uploaded_keys.append(cert_key)
+                # Upload certificate file (optional)
+                if local_files.certificate_path:
+                    cert_key = f"{pool_prefix}/{Path(local_files.certificate_path).name}"
+                    self._upload_file(local_files.certificate_path, cert_key)
+                    uploaded_keys.append(cert_key)
 
-                # Upload signature file
-                sig_key = f"pool/main/k/kiro/{Path(local_files.signature_path).name}"
-                self._upload_file(local_files.signature_path, sig_key)
-                uploaded_keys.append(sig_key)
+                # Upload signature file (optional)
+                if local_files.signature_path:
+                    sig_key = f"{pool_prefix}/{Path(local_files.signature_path).name}"
+                    self._upload_file(local_files.signature_path, sig_key)
+                    uploaded_keys.append(sig_key)
 
             # Set public read permissions on all uploaded files
             self.set_public_permissions(uploaded_keys)
@@ -183,11 +189,11 @@ class S3Publisher:
                 )
 
                 # Copy within S3 (no download/upload needed)
+                # Note: ACL not set - public access is managed by bucket policy
                 self.s3_client.copy_object(
                     Bucket=self.bucket_name,
                     CopySource={"Bucket": self.bucket_name, "Key": pool_key},
                     Key=convenience_key,
-                    ACL="public-read",
                     ContentType="application/vnd.debian.binary-package",
                     MetadataDirective="REPLACE",
                     Metadata={

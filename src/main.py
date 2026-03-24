@@ -198,6 +198,40 @@ def lambda_handler(event: dict[str, Any], context: Any) -> dict[str, Any]:
             if pkg.package_name == "kiro":
                 local_files_map[pkg.version] = _create_local_files_from_metadata(pkg)
 
+        # For force rebuild or when kiro-repo packages exist in DynamoDB,
+        # download them from S3 staging so they can be uploaded to pool
+        kiro_repo_packages = [
+            p for p in all_packages if p.package_name == "kiro-repo"
+        ]
+        if kiro_repo_packages:
+            import boto3 as _boto3
+            _s3 = _boto3.client("s3")
+            for pkg in kiro_repo_packages:
+                local_path = f"/tmp/{pkg.actual_filename}"
+                staging_key = f"staging/kiro-repo/{pkg.actual_filename}"
+                try:
+                    _s3.download_file(s3_bucket, staging_key, local_path)
+                    local_files_map[f"kiro-repo#{pkg.version}"] = LocalReleaseFiles(
+                        deb_file_path=local_path,
+                        certificate_path="",
+                        signature_path="",
+                        version=pkg.version,
+                        package_name="kiro-repo",
+                    )
+                    logger.info(
+                        "Downloaded kiro-repo %s from staging to %s",
+                        pkg.version,
+                        local_path,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Could not download kiro-repo %s from staging (%s): %s — "
+                        "pool file may already exist",
+                        pkg.version,
+                        staging_key,
+                        e,
+                    )
+
         repository_structure = repository_builder.create_repository_structure(
             packages=all_packages,
             local_files_map=local_files_map,

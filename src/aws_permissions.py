@@ -257,7 +257,7 @@ class AWSPermissionValidator:
         Raises:
             AWSPermissionError: If operation is not permitted
         """
-        test_key = {"version": {"S": "permission-test-key"}}
+        test_key = {"package_id": {"S": "permission-test-key"}}
 
         try:
             if operation == "PutItem":

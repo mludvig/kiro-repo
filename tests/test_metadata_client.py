@@ -14,7 +14,7 @@ class TestMetadataClient:
 
     def test_fetch_current_metadata_success(self):
         """Test successful metadata fetching."""
-        client = MetadataClient()
+        client = MetadataClient(metadata_url="https://example.com/metadata.json")
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.return_value = {
@@ -34,7 +34,7 @@ class TestMetadataClient:
 
     def test_parse_release_info_success(self):
         """Test successful release info parsing."""
-        client = MetadataClient()
+        client = MetadataClient(metadata_url="https://example.com/metadata.json")
         metadata = {
             "version": "0.7.45",
             "pub_date": "2024-01-15",
@@ -55,7 +55,7 @@ class TestMetadataClient:
 
     def test_parse_release_info_missing_fields(self):
         """Test parsing with missing required fields."""
-        client = MetadataClient()
+        client = MetadataClient(metadata_url="https://example.com/metadata.json")
         metadata = {
             "version": "0.7.45",
             # Missing required fields
@@ -66,7 +66,7 @@ class TestMetadataClient:
 
     def test_fetch_metadata_network_error(self):
         """Test handling of network errors."""
-        client = MetadataClient()
+        client = MetadataClient(metadata_url="https://example.com/metadata.json")
 
         with patch.object(
             client.session,
@@ -78,7 +78,7 @@ class TestMetadataClient:
 
     def test_fetch_metadata_invalid_json(self):
         """Test handling of invalid JSON response."""
-        client = MetadataClient()
+        client = MetadataClient(metadata_url="https://example.com/metadata.json")
         mock_response = Mock()
         mock_response.status_code = 200
         mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)

@@ -42,7 +42,7 @@ def test_version_tracking_consistency_property(
     base_url = f"{protocol}://{domain}"
 
     # Create metadata client and version manager
-    client = MetadataClient()
+    client = MetadataClient(metadata_url="https://example.com/metadata.json")
     version_manager = MockVersionManager()
 
     # Create valid metadata structure

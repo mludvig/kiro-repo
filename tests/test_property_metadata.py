@@ -41,7 +41,7 @@ def test_metadata_processing_round_trip_property(
         "notes": notes,
     }
 
-    client = MetadataClient()
+    client = MetadataClient(metadata_url="https://example.com/metadata.json")
 
     try:
         # Parse release info from metadata

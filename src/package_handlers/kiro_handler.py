@@ -31,12 +31,13 @@ class KiroPackageHandler(PackageHandler):
         """
         super().__init__(config)
 
-        self.metadata_client = MetadataClient()
-        if config.source.metadata_endpoint:
-            self.metadata_client.METADATA_URL = (
-                config.source.metadata_endpoint
+        metadata_url = config.source.metadata_endpoint
+        if not metadata_url:
+            raise ValueError(
+                f"Package '{config.package_name}' is missing required "
+                "'source.metadata_endpoint' in its config"
             )
-
+        self.metadata_client = MetadataClient(metadata_url=metadata_url)
         self.downloader = PackageDownloader()
 
     def check_new_version(self) -> str | None:

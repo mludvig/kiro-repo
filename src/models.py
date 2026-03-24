@@ -111,6 +111,7 @@ class LocalReleaseFiles:
     certificate_path: str
     signature_path: str
     version: str
+    package_name: str = "kiro"
 
 
 @dataclass

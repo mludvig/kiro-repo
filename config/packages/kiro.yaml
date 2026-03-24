@@ -9,7 +9,7 @@ architecture: amd64
 # Source configuration
 source:
   type: external_download
-  metadata_endpoint: "https://download.kiro.dev/linux/metadata.json"
+  metadata_endpoint: "https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-deb-stable.json"
 
 # Additional files to download
 additional_files:

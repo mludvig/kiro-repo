@@ -24,19 +24,24 @@ log_fail()    { echo -e "${RED}✗${NC} $*" >&2; }
 # ---------------------------------------------------------------------------
 usage() {
     cat <<EOF
-Usage: $0 --version <version> --env <environment>
+Usage: $0 --version <version> (--env <environment> | --repo-url <url>)
 
 Required arguments:
-  --version   Package version (e.g., 1.0, 1.1, 2.0)
-  --env       Environment: dev, staging, or prod
+  --version    Package version (e.g., 1.0, 1.1, 2.0)
+  --env        Environment: dev, staging, or prod
+               (reads repo URL from Terraform state)
+  --repo-url   Repository base URL (skips Terraform state lookup)
+               e.g. https://my-bucket.s3.amazonaws.com
 
 Optional arguments:
-  --dry-run   Build and validate the package without uploading or storing metadata
-  -h|--help   Show this help message
+  --dry-run    Build and validate the package without uploading or storing metadata
+  --local      Build only; skip S3 upload, DynamoDB write, and Lambda invoke
+  -h|--help    Show this help message
 
 Examples:
   $0 --version 1.2 --env dev
   $0 --version 2.0 --env prod --dry-run
+  $0 --version 1.0 --repo-url https://my-bucket.s3.amazonaws.com --local
 EOF
     exit 1
 }
@@ -46,14 +51,18 @@ EOF
 # ---------------------------------------------------------------------------
 VERSION=""
 ENV=""
+REPO_URL_OVERRIDE=""
 DRY_RUN=false
+LOCAL_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
-        --version)  VERSION="$2"; shift 2 ;;
-        --env)      ENV="$2";     shift 2 ;;
-        --dry-run)  DRY_RUN=true; shift   ;;
-        -h|--help)  usage ;;
+        --version)   VERSION="$2";           shift 2 ;;
+        --env)       ENV="$2";               shift 2 ;;
+        --repo-url)  REPO_URL_OVERRIDE="$2"; shift 2 ;;
+        --dry-run)   DRY_RUN=true;           shift   ;;
+        --local)     LOCAL_ONLY=true;        shift   ;;
+        -h|--help)   usage ;;
         *)
             log_error "Unknown argument: $1"
             usage
@@ -61,12 +70,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-if [[ -z "$VERSION" || -z "$ENV" ]]; then
-    log_error "Both --version and --env are required."
+if [[ -z "$VERSION" ]]; then
+    log_error "--version is required."
     usage
 fi
 
-if [[ ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
+if [[ -z "$ENV" && -z "$REPO_URL_OVERRIDE" ]]; then
+    log_error "Either --env or --repo-url is required."
+    usage
+fi
+
+if [[ -n "$ENV" && ! "$ENV" =~ ^(dev|staging|prod)$ ]]; then
     log_error "Environment must be one of: dev, staging, prod"
     exit 1
 fi
@@ -315,7 +329,7 @@ invoke_lambda() {
     rm -f "$response_file"
 
     if [[ "$status_code" != "200" ]]; then
-        log_fail "Lambda returned non-200 status: $status_code"
+        log_fail "Lambda function returned error status: $status_code"
         rm -rf "$BUILD_DIR"
         exit 1
     fi
@@ -331,13 +345,21 @@ main() {
     log_info "========================================="
     log_info " Building kiro-repo package"
     log_info "  Version:     $VERSION"
-    log_info "  Environment: $ENV"
-    [[ "$DRY_RUN" == "true" ]] && log_info "  Mode:        DRY RUN (no upload/store)"
+    [[ -n "$ENV" ]]              && log_info "  Environment: $ENV"
+    [[ -n "$REPO_URL_OVERRIDE" ]] && log_info "  Repo URL:    $REPO_URL_OVERRIDE (override)"
+    [[ "$DRY_RUN"    == "true" ]] && log_info "  Mode:        DRY RUN (no upload/store)"
+    [[ "$LOCAL_ONLY" == "true" ]] && log_info "  Mode:        LOCAL (build only)"
     log_info "========================================="
     echo ""
 
-    # Step 1: Read Terraform state (skip in dry-run if no state file)
-    if [[ "$DRY_RUN" == "true" ]]; then
+    # Step 1: Resolve repo URL
+    if [[ -n "$REPO_URL_OVERRIDE" ]]; then
+        REPO_URL="$REPO_URL_OVERRIDE"
+        S3_BUCKET=""
+        DYNAMODB_TABLE=""
+        LAMBDA_FUNCTION=""
+        log_step "Using provided repo URL: $REPO_URL"
+    elif [[ "$DRY_RUN" == "true" ]]; then
         # In dry-run, use placeholder values if state is unavailable
         if [[ -f "$TERRAFORM_DIR/${ENV}.tfstate" ]]; then
             read_terraform_state
@@ -355,11 +377,16 @@ main() {
     # Step 2: Build the package
     build_package
 
-    if [[ "$DRY_RUN" == "true" ]]; then
+    if [[ "$DRY_RUN" == "true" || "$LOCAL_ONLY" == "true" ]]; then
         echo ""
-        log_info "Dry-run complete. Package built at: $DEB_FILE"
-        log_info "No files were uploaded or stored."
-        rm -rf "$BUILD_DIR"
+        log_info "Package built at: $DEB_FILE"
+        if [[ "$DRY_RUN" == "true" ]]; then
+            log_info "Dry-run complete. No files were uploaded or stored."
+            rm -rf "$BUILD_DIR"
+        else
+            log_info "Local build complete. .deb is at: $DEB_FILE"
+            log_info "BUILD_DIR=$BUILD_DIR (not cleaned up)"
+        fi
         exit 0
     fi
 

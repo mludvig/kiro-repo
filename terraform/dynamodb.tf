@@ -2,10 +2,10 @@
 resource "aws_dynamodb_table" "version_store" {
   name           = "${var.project_name}-versions-${var.env}"
   billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "version"
+  hash_key       = "package_id"
 
   attribute {
-    name = "version"
+    name = "package_id"
     type = "S"
   }
 

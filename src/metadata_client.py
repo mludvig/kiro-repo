@@ -16,15 +16,15 @@ logger = logging.getLogger(__name__)
 class MetadataClient:
     """Client for fetching and parsing Kiro package metadata."""
 
-    METADATA_URL = "https://prod.download.desktop.kiro.dev/stable/metadata-linux-x64-deb-stable.json"
-
-    def __init__(self, timeout: int = 30, max_retries: int = 3):
+    def __init__(self, metadata_url: str, timeout: int = 30, max_retries: int = 3):
         """Initialize the metadata client.
 
         Args:
+            metadata_url: URL to fetch package metadata from
             timeout: Request timeout in seconds
             max_retries: Maximum number of retry attempts
         """
+        self.METADATA_URL = metadata_url
         self.timeout = timeout
         self.max_retries = max_retries
         self.session = self._create_session()

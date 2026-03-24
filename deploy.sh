@@ -95,6 +95,10 @@ fi
 print_status "Copying source code..."
 cp -r src/ $PACKAGE_DIR/
 
+# Copy package configuration files
+print_status "Copying package configurations..."
+cp -r config/ $PACKAGE_DIR/
+
 # Remove unnecessary files
 print_status "Cleaning up package..."
 find $PACKAGE_DIR -name "*.pyc" -delete
