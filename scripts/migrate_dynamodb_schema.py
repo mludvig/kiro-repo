@@ -1,4 +1,4 @@
-"""One-time DynamoDB schema migration script.
+"""DynamoDB schema migration and restore script.
 
 Transforms existing records from old schema (partition key: version)
 to new schema (partition key: package_id = "package_name#version").
@@ -6,6 +6,7 @@ to new schema (partition key: package_id = "package_name#version").
 Usage:
     python scripts/migrate_dynamodb_schema.py --env dev --dry-run
     python scripts/migrate_dynamodb_schema.py --env dev --backup-file backup.jsonl
+    python scripts/migrate_dynamodb_schema.py --env prod --restore-from backup.jsonl
 """
 
 import argparse
@@ -144,8 +145,8 @@ class DynamoDBSchemaMigration:
             for item in items:
                 fh.write(json.dumps(item, default=str) + "\n")
 
-        # Verify the file was written
-        if not backup_file.exists() or backup_file.stat().st_size == 0:
+        # Verify the file was written (only fail if we had items but wrote nothing)
+        if items and (not backup_file.exists() or backup_file.stat().st_size == 0):
             raise IOError(f"Backup file was not written successfully: {backup_file}")
 
         logger.info("Backed up %d records to %s", len(items), backup_file)
@@ -293,6 +294,50 @@ class DynamoDBSchemaMigration:
         logger.info("Successfully uploaded all %d records", len(new_records))
 
     # ------------------------------------------------------------------
+    # Restore phase
+    # ------------------------------------------------------------------
+
+    def restore_from_backup(self, backup_file: Path) -> int:
+        """Load records from a JSONL backup file, transform, and write to DynamoDB.
+
+        Reads raw records from the backup (old or new schema), transforms them
+        to the new schema, and uploads them. Does not delete anything.
+
+        Args:
+            backup_file: Path to the JSONL backup file.
+
+        Returns:
+            Number of records successfully restored.
+
+        Raises:
+            FileNotFoundError: If the backup file does not exist.
+            ClientError: If DynamoDB writes fail.
+        """
+        if not backup_file.exists():
+            raise FileNotFoundError(f"Backup file not found: {backup_file}")
+
+        raw_records: list[dict[str, Any]] = []
+        with open(backup_file, encoding="utf-8") as fh:
+            for lineno, line in enumerate(fh, start=1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    raw_records.append(json.loads(line))
+                except json.JSONDecodeError as exc:
+                    logger.warning("Skipping line %d (invalid JSON): %s", lineno, exc)
+
+        logger.info("Read %d records from %s", len(raw_records), backup_file)
+
+        new_records = self.transform_records(raw_records)
+        if not new_records:
+            logger.warning("No records were successfully transformed. Aborting.")
+            return 0
+
+        self.upload_new_records(new_records)
+        return len(new_records)
+
+    # ------------------------------------------------------------------
     # Cleanup phase
     # ------------------------------------------------------------------
 
@@ -383,6 +428,9 @@ Examples:
 
   # Actual migration with mandatory backup file
   python scripts/migrate_dynamodb_schema.py --env dev --backup-file backup_20260302.jsonl
+
+  # Restore into a fresh table from a backup (no backup/delete step)
+  python scripts/migrate_dynamodb_schema.py --env prod --restore-from backup_20260302.jsonl
 """,
     )
     parser.add_argument(
@@ -396,6 +444,12 @@ Examples:
         action="store_true",
         default=False,
         help="Show transformations without modifying DynamoDB",
+    )
+    parser.add_argument(
+        "--restore-from",
+        type=Path,
+        default=None,
+        help="Restore records from a JSONL backup file into the table (skips backup/delete)",
     )
     parser.add_argument(
         "--backup-file",
@@ -433,9 +487,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = _build_arg_parser()
     args = parser.parse_args(argv)
 
-    # Validate: backup-file is required for actual migration
-    if not args.dry_run and args.backup_file is None:
-        parser.error("--backup-file is required when not using --dry-run")
+    # Validate: backup-file is required for actual migration (not restore/dry-run)
+    if not args.dry_run and args.restore_from is None and args.backup_file is None:
+        parser.error("--backup-file is required when not using --dry-run or --restore-from")
 
     table_name = args.table_name or f"kiro-debian-repo-manager-versions-{args.env}"
 
@@ -451,6 +505,14 @@ def main(argv: list[str] | None = None) -> int:
     old_records: list[dict[str, Any]] = []
 
     try:
+        # Restore mode: load from backup file, transform, upload — no backup/delete
+        if args.restore_from is not None:
+            count = migration.restore_from_backup(args.restore_from)
+            if count == 0:
+                return 1
+            logger.info("Restore complete. %d records written.", count)
+            return 0
+
         # Step 1: Backup
         if backup_file:
             old_records = migration.backup_existing_records(backup_file)
